@@ -6,8 +6,18 @@ import { go } from "../App";
 const PROMPTS = [
   "Summarize this term sheet and flag anything unusual in the liquidation preference.",
   "Here are my lab results from Tuesday. What should I ask my doctor?",
-  "Review this wallet's private strategy notes before we deploy on Monday.",
   "Draft a reply to my landlord about the deposit. Keep it firm.",
+  "Go through our Q3 numbers before the board sees them. What looks weak?",
+  "My therapist suggested journaling. Can you help me make sense of this entry?",
+  "Review this contract clause. Can they really terminate without notice?",
+  "Here's our unreleased product spec. Write the launch announcement.",
+  "Help me write a resignation letter. My manager doesn't know yet.",
+  "Explain these symptoms in plain English. I'm not ready to tell anyone.",
+  "Find the bug in this private repo before the audit starts.",
+  "Rewrite this cover letter for a job at our competitor.",
+  "Summarize these customer support tickets. They include names and emails.",
+  "What are my options if I can't pay this tax bill on time?",
+  "Translate this message to my family. It's personal.",
 ];
 
 /** The mechanic as the hero: the same prompt, seen from your side of the glass and from the operator's. */
