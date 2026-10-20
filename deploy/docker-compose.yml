@@ -3,7 +3,7 @@
 # Secrets (provider API keys) are passed as Phala Cloud encrypted env vars, decrypted only inside the VM.
 services:
   gateway:
-    image: ghcr.io/tintedmarket/tinted-gateway@sha256:02e8ac98a05b13d2c10235961adcc63ffd5cbac54ed68be6619a83223be28ad9
+    image: ghcr.io/tintedmarket/tinted-gateway@sha256:4c6444b248572a54250d70bda6a38dc942c4f54889b5dda0aa9c5809f7ca58fc
     restart: always
     ports:
       - "8787:8787"
