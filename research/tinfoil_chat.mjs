@@ -1,0 +1,12 @@
+import { TinfoilAI } from "tinfoil";
+import { readFileSync } from "node:fs";
+const env = Object.fromEntries(readFileSync("../.env", "utf8").split(/\r?\n/).filter((l) => l.includes("=")).map((l) => [l.slice(0, l.indexOf("=")), l.slice(l.indexOf("=") + 1)]));
+const client = new TinfoilAI({ apiKey: env.TINFOIL_API_KEY });
+let t = Date.now();
+await client.ready?.();
+console.log("client ready", Date.now() - t, "ms");
+t = Date.now();
+const r = await client.chat.completions.create({ model: "gemma4-31b", messages: [{ role: "user", content: "Reply with exactly: tinted works" }], max_tokens: 12 });
+console.log(Date.now() - t, "ms:", JSON.stringify(r.choices[0].message.content), "usage", JSON.stringify(r.usage));
+const doc = client.getVerificationDocument?.() ?? (await client.getVerificationDocument?.());
+console.log("verified:", doc?.securityVerified, doc?.releaseTag, doc?.enclaveHost);

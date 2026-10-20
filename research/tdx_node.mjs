@@ -1,0 +1,12 @@
+import dcap from "@phala/dcap-qvl-node";
+import { readFileSync } from "node:fs";
+const rep = JSON.parse(readFileSync("redpill_report.json", "utf8"));
+const a = (rep.all_attestations ?? [rep])[0];
+const quote = Buffer.from(a.intel_quote, "hex");
+console.log("fns:", Object.keys(dcap).filter((k) => k.startsWith("js_")), "default:", typeof dcap.default);
+const t = Date.now();
+const coll = await dcap.js_get_collateral("https://api.trustedservices.intel.com/tdx/certification/v4", quote);
+console.log("collateral keys:", Object.keys(coll), `${Date.now() - t} ms`);
+const res = dcap.js_verify(quote, coll, BigInt(Math.floor(Date.now() / 1000)));
+console.log("verify result keys:", Object.keys(res));
+console.log(JSON.stringify(res, (k, v) => (typeof v === "bigint" ? v.toString() : v instanceof Uint8Array ? Buffer.from(v).toString("hex").slice(0, 32) + "…" : v)).slice(0, 1500));
