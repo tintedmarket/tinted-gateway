@@ -23,7 +23,8 @@ export function tinfoilProvider(apiKey: string): Provider {
       const res = await fetch("https://inference.tinfoil.sh/v1/models", { headers: { authorization: `Bearer ${apiKey}` } });
       const j = (await res.json()) as { data: { id: string; name: string; endpoints?: string[]; context_window?: number; pricing?: { inputTokenPricePer1M: number; outputTokenPricePer1M: number } }[] };
       return j.data
-        .filter((m) => m.endpoints?.includes("/v1/chat/completions") && m.pricing)
+        // Chat models only (tools like websearch have no weights to pin).
+        .filter((m) => m.endpoints?.includes("/v1/chat/completions") && m.pricing && m.pricing.outputTokenPricePer1M > 0)
         .map((m) => ({ id: `tinfoil/${m.id}`, provider: "tinfoil", model: m.id, name: m.name, inputPerM: m.pricing!.inputTokenPricePer1M, outputPerM: m.pricing!.outputTokenPricePer1M, contextWindow: m.context_window }));
     },
     async verify(model) {

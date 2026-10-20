@@ -53,6 +53,32 @@ app.get("/v1/models", async (c) => {
   });
 });
 
+/** The market table: every listing, our price, and the proof states from the last background verification. */
+app.get("/v1/market", async (c) => {
+  const ls = await listings();
+  const rows = await Promise.all(
+    ls.map(async (l) => {
+      const hit = cachedVerification(l.id);
+      const v = hit ? await hit.v.catch(() => null) : null;
+      return {
+        id: l.id,
+        provider: l.provider,
+        model: l.model,
+        name: l.name,
+        contextWindow: l.contextWindow,
+        inputPerM: +(l.inputPerM * (1 + MARGIN())).toFixed(4),
+        outputPerM: +(l.outputPerM * (1 + MARGIN())).toFixed(4),
+        checkedAt: v?.checkedAt ?? null,
+        claims: v ? Object.fromEntries(Object.entries(v.claims).map(([k, cl]) => [k, cl.state])) : null,
+        // Routable = passes the strict policy; anything else is listed with the reason, never silently served.
+        routable: v ? meetsPolicy(v).ok : null,
+        whyNot: v && !meetsPolicy(v).ok ? meetsPolicy(v).why : undefined,
+      };
+    }),
+  );
+  return c.json({ listings: rows, margin: MARGIN() });
+});
+
 /** Full verification of one listing: every claim with what was checked. Checks now if not cached. */
 app.get("/v1/verification/:provider/:model{.+}", async (c) => {
   const found = await findListing(`${c.req.param("provider")}/${c.req.param("model")}`);
@@ -157,7 +183,15 @@ app.get("/v1/balance", async (c) => {
 });
 
 const tee = await initTee();
-// Background jobs: credit deposits every 30 s, anchor receipts on Solana every TINTED_ANCHOR_MINUTES (default 60).
+// Background jobs: re-verify every listing every 10 min (keeps /v1/market fresh), credit deposits every 30 s, anchor receipts on Solana every TINTED_ANCHOR_MINUTES (default 60).
+const verifyAll = async () => {
+  for (const l of await listings()) {
+    const found = await findListing(l.id);
+    if (found) await verificationFor(found.listing, found.provider).catch(() => null);
+  }
+};
+void verifyAll();
+setInterval(() => void verifyAll(), 10 * 60_000);
 setInterval(() => void pollDeposits().catch((e) => console.error("deposits", String(e).slice(0, 200))), 30_000);
 setInterval(() => void anchorPending().then((r) => r.anchored && console.log("anchored", r)).catch((e) => console.error("anchor", String(e).slice(0, 200))), Number(process.env.TINTED_ANCHOR_MINUTES ?? 60) * 60_000);
 const port = Number(process.env.PORT ?? 8787);
