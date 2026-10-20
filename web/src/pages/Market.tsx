@@ -1,74 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { api, CLAIMS, type ClaimName, type ClaimState, type MarketRow } from "../api";
-import { Badge, Button, CLAIM_HINT, CLAIM_LABEL, Pane } from "../ui";
+import { Badge, Button, CLAIM_HINT, CLAIM_LABEL, H, Pane } from "../ui";
 import { go } from "../App";
-
-const PROMPTS = [
-  "Summarize this term sheet and flag anything unusual in the liquidation preference.",
-  "Here are my lab results from Tuesday. What should I ask my doctor?",
-  "Review this wallet's private strategy notes before we deploy on Monday.",
-  "Draft a reply to my landlord about the deposit. Keep it firm.",
-];
-
-/** The mechanic as the hero: the same prompt, seen from your side of the glass and from the operator's. */
-function Glass() {
-  const [i, setI] = useState(0);
-  const [n, setN] = useState(0);
-  const text = PROMPTS[i];
-  useEffect(() => {
-    const t = setTimeout(
-      () => {
-        if (n < text.length) setN(n + 1);
-        else {
-          setN(0);
-          setI((i + 1) % PROMPTS.length);
-        }
-      },
-      n < text.length ? 28 : 2600,
-    );
-    return () => clearTimeout(t);
-  }, [n, i, text.length]);
-  const typed = text.slice(0, n);
-  const lit = n >= text.length ? 5 : Math.floor((n / text.length) * 5);
-
-  return (
-    <div className="grid overflow-hidden rounded-xl border border-edge md:grid-cols-[1fr_auto_1fr]">
-      <div className="bg-pane-2/60 p-6 sm:p-8">
-        <div className="font-mono text-[11px] tracking-[0.2em] text-ink-3 uppercase">Your side</div>
-        <p className="mt-4 min-h-24 text-lg leading-relaxed text-ink">
-          {typed}
-          <span className="ml-0.5 inline-block h-5 w-[2px] translate-y-1 animate-pulse bg-proof" />
-        </p>
-        <div className="mt-6 flex flex-wrap gap-1.5">
-          {CLAIMS.map((c, k) => (
-            <Badge key={c} name={c} state={k < lit ? "verified" : "unknown"} />
-          ))}
-        </div>
-      </div>
-      <div className="relative hidden w-10 md:block">
-        <div className="absolute inset-0 bg-gradient-to-r from-proof/20 via-proof/5 to-night" />
-        <div className="absolute inset-y-0 left-1/2 w-px bg-proof/50" />
-      </div>
-      <div className="relative bg-[#040506] p-6 sm:p-8">
-        <div className="font-mono text-[11px] tracking-[0.2em] text-ink-3 uppercase">The operator's side</div>
-        <p aria-hidden className="mt-4 min-h-24 text-lg leading-relaxed break-all text-transparent select-none">
-          {typed.split("").map((ch, k) =>
-            ch === " " ? (
-              " "
-            ) : (
-              <span key={k} className="rounded-[1px] bg-edge/80">
-                {ch}
-              </span>
-            ),
-          )}
-        </p>
-        <div className="mt-6 font-mono text-[11px] text-ink-3">
-          ciphertext in · ciphertext out · {lit === 5 ? <span className="text-proof">5/5 proofs passed</span> : `${lit}/5 proofs`}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function Evidence({ id }: { id: string }) {
   const [v, setV] = useState<Awaited<ReturnType<typeof api.verification>> | null>(null);
@@ -111,34 +44,11 @@ export function Market() {
 
   return (
     <div>
-      <section className="mb-14">
-        <div className="font-mono text-[11px] tracking-[0.2em] text-proof uppercase">The Private Inference Market</div>
-        <h1 className="mt-3 max-w-3xl font-display text-5xl leading-[1.05] sm:text-7xl">
-          Inference behind <em className="text-proof">one-way glass.</em>
-        </h1>
-        <p className="mt-5 max-w-2xl text-lg text-ink-2">
-          Every model here runs inside a hardware enclave. Before your prompt is sent, Tinted checks the proof: the chip, the GPU, the code, the weights, the keys. You see the
-          answer. Nobody running the machine does. Pay in USDC on Solana; every call leaves a signed receipt anchored on-chain.
-        </p>
-        <div className="mt-6 flex flex-wrap gap-3">
-          <Button onClick={() => go("chat")}>Start a private chat</Button>
-          <Button kind="ghost" onClick={() => go("docs")}>
-            Use the API
-          </Button>
-        </div>
-        <div className="mt-10">
-          <Glass />
-        </div>
-      </section>
-
       <section>
         <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h2 className="font-display text-3xl">The market</h2>
-            <p className="text-sm text-ink-3">
-              {rows ? `${counts.all} listings · ${counts.routable} pass every proof · ${counts.weights} with verified weights` : "Loading listings…"}
-            </p>
-          </div>
+          <H kicker="Market" title="Every listing, with its proof.">
+            {rows ? `${counts.all} listings · ${counts.routable} pass every proof · ${counts.weights} with verified weights. Re-checked every 10 minutes.` : "Loading listings…"}
+          </H>
           <label className="flex cursor-pointer items-center gap-2 text-sm text-ink-2">
             <input type="checkbox" checked={onlyRoutable} onChange={(e) => setOnlyRoutable(e.target.checked)} className="accent-[#7fd1b9]" />
             Hide listings that failed a proof
