@@ -5,6 +5,7 @@ import { db } from "./db.ts";
 import { cachedVerification, costMicros, findListing, listings, MARGIN, verificationFor } from "./market.ts";
 import { checkReceipt, makeReceipt, receiptKey, type Receipt } from "./receipts.ts";
 import { meetsPolicy } from "../verify/types.ts";
+import { attestation, initTee } from "./tee.ts";
 
 /**
  * Tinted gateway: an OpenAI-compatible API over confidential inference providers. Every request is routed only to an
@@ -21,6 +22,9 @@ async function auth(header: string | undefined) {
 }
 
 app.get("/health", (c) => c.json({ ok: true, receiptKey: receiptKey().publicKey }));
+
+/** Verify Tinted itself: a fresh TDX quote binding the receipt key, plus the measured app config. */
+app.get("/attestation", async (c) => c.json(await attestation()));
 
 /** OpenAI-style model list, plus our price and the verification state we last saw. */
 app.get("/v1/models", async (c) => {
@@ -106,7 +110,8 @@ app.get("/v1/balance", async (c) => {
   return c.json({ balance_usd: account.balanceMicros / 1e6 });
 });
 
+const tee = await initTee();
 const port = Number(process.env.PORT ?? 8787);
 // overrideGlobalObjects off: the Intel quote verifier (wasm) checks `instanceof Response` on its own fetches.
 serve({ fetch: app.fetch, port, overrideGlobalObjects: false });
-console.log(`tinted gateway on :${port}, receipt key ${receiptKey().publicKey.slice(0, 16)}…`);
+console.log(`tinted gateway on :${port}, ${tee.tee ? "in TEE" : "dev (no TEE)"}, receipt key ${receiptKey().publicKey.slice(0, 16)}…`);

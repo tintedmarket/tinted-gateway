@@ -1,0 +1,19 @@
+# Tinted gateway inside a dstack confidential VM (Phala Cloud). The image is pinned by digest, so the compose hash in
+# the TDX quote identifies the exact build; /var/run/dstack.sock gives the gateway its KMS-derived keys and quotes.
+# Secrets (provider API keys) are passed as Phala Cloud encrypted env vars, decrypted only inside the VM.
+services:
+  gateway:
+    image: ghcr.io/OWNER/tinted-gateway@sha256:DIGEST
+    restart: always
+    ports:
+      - "8787:8787"
+    environment:
+      - REDPILL_API_KEY
+      - TINFOIL_API_KEY
+      - TINTED_MARGIN=0.15
+      - PORT=8787
+    volumes:
+      - /var/run/dstack.sock:/var/run/dstack.sock
+      - tinted-data:/app/.data
+volumes:
+  tinted-data:
