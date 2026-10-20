@@ -35,6 +35,9 @@ export const api = {
   balance: (key: string) => j<{ balance_usd: number }>("/v1/balance", authed(key)),
   deposit: (key: string) => j<{ mint: string; to: string; tokenAccount: string; memo: string; note: string }>("/v1/deposit", authed(key)),
   receipt: (id: string) => j<{ receipt: Receipt; signature: string; signatureValid: boolean; anchor: Anchor | null }>(`/v1/receipts/${encodeURIComponent(id)}`),
+  credits: () => j<{ root: string; size: number; levels: number; denominations_usd: number[]; deposit: { chain: string; mint: string; to: string; memo: string } | null; circuit: { wasm: string; zkey: string; vkSha256: string } }>("/v1/credits"),
+  leaves: (from: number) => j<{ from: number; leaves: string[]; size: number }>(`/v1/credits/leaves?from=${from}`),
+  redeem: (body: { proof: unknown; publicSignals: string[]; keyHash: string }) => j<{ ok: true; credited_usd: number; new_key: boolean }>("/v1/credits/redeem", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }),
   async chat(key: string, model: string, messages: { role: string; content: string }[], requireWeights: boolean) {
     const res = await fetch(GATEWAY + "/v1/chat/completions", authed(key, { method: "POST", body: JSON.stringify({ model, messages, max_tokens: 1200 }), headers: requireWeights ? { "x-tinted-require-weights": "1" } : {} }));
     const body = (await res.json().catch(() => ({}))) as { choices?: { message: { content: string | null; reasoning_content?: string } }[]; error?: { message: string }; usage?: { prompt_tokens: number; completion_tokens: number } };

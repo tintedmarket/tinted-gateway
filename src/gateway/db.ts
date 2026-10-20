@@ -56,6 +56,22 @@ const SCHEMA = [
      signature text not null,
      anchor jsonb,
      created_at timestamptz not null default now())`,
+  // Anonymous credits: note commitments in tree order, every root the tree has had, spent nullifiers. No link between them.
+  `create table if not exists notes (
+     idx integer primary key,
+     commitment text unique not null,
+     denom_micros bigint not null,
+     signature text not null,
+     created_at timestamptz not null default now())`,
+  `create table if not exists note_roots (
+     root text primary key,
+     count integer not null,
+     anchor_tx text,
+     created_at timestamptz not null default now())`,
+  `create table if not exists nullifiers (
+     hash text primary key,
+     denom_micros bigint not null,
+     created_at timestamptz not null default now())`,
 ];
 
 export function db(): Promise<Query> {

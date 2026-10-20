@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { PublicKey, type ParsedTransactionWithMeta } from "@solana/web3.js";
 import { db } from "./db.ts";
+import { addNote, noteMemo } from "./notes.ts";
 import { associatedTokenAddress, connection, MEMO_PROGRAM, USDC_MINT } from "./solana.ts";
 
 /**
@@ -57,6 +58,15 @@ export async function pollDeposits(): Promise<{ credited: number; unmatched: num
       const tx = await connection().getParsedTransaction(s.signature, { maxSupportedTransactionVersion: 0, commitment: "confirmed" });
       if (!tx) continue;
       const { amount, memo } = parse(tx, t.usdcAccount);
+      // A note deposit: the memo is a commitment, not an account. It joins the anonymous credit tree, credited to nobody.
+      const note = memo?.trim().match(noteMemo)?.[1];
+      if (note) {
+        const why = amount > 0 ? await addNote(note, amount, s.signature) : "no USDC received";
+        await q("insert into deposits (signature, account_id, amount_micros, memo) values ($1, null, $2, $3) on conflict do nothing", [s.signature, amount, why ? `${memo} (not added: ${why})` : memo]);
+        if (why) unmatched++;
+        else credited++;
+        continue;
+      }
       const code = memo?.match(/tinted:([0-9a-f]{10})/)?.[1];
       const [acct] = code ? await q<{ id: string }>("select id from accounts where deposit_code = $1", [code]) : [];
       await q("insert into deposits (signature, account_id, amount_micros, memo) values ($1, $2, $3, $4) on conflict do nothing", [s.signature, acct?.id ?? null, amount, memo]);

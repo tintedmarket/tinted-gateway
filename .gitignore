@@ -3,3 +3,4 @@ node_modules/
 .data/
 .data-server.log
 research/*.json
+zk/build/

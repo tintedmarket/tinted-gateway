@@ -20,3 +20,9 @@
 ## Verify
 - Source: https://github.com/tintedmarket/tinted-gateway
 - Site: https://tinted.market
+
+## Anonymous credits (ZK)
+- GET /v1/credits — note sizes ($10/$50/$200), tree root/size, circuit files (https://tinted.market/zk/credit.wasm, credit.zkey)
+- Buy: pay exactly a note size in USDC to the treasury with memo `tinted:note:<hex Poseidon(nullifierSecret, secret, amountMicros)>`
+- GET /v1/credits/leaves?from=N — all commitments in tree order (build the Merkle path locally; Poseidon, 20 levels, zero leaf 0)
+- POST /v1/credits/redeem {proof, publicSignals:[root, nullifierHash, denomMicros, sessionKey], keyHash} — sessionKey = sha256(api key) mod BN254 r; credits that key (created if new)

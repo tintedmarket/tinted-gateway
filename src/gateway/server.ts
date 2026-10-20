@@ -10,6 +10,7 @@ import { attestation, initTee } from "./tee.ts";
 import { cors } from "hono/cors";
 import { depositCode, depositMemo, pollDeposits, treasury } from "./deposits.ts";
 import { anchorPending } from "./anchor.ts";
+import { addNote, anchorNotes, DENOMS, leaves, redeem, treeState, vkHash } from "./notes.ts";
 import { USDC_MINT } from "./solana.ts";
 
 /**
@@ -156,6 +157,14 @@ app.post("/admin/credit", async (c) => {
   return c.json({ ok: true });
 });
 
+/** Add a note by hand, e.g. a deposit whose memo a wallet mangled. Tree insertion only: it can't credit anyone. */
+app.post("/admin/notes", async (c) => {
+  if (!isAdmin(c.req.header("authorization"))) return err(401, "not allowed", "authentication_error");
+  const b = (await c.req.json().catch(() => ({}))) as { commitment?: string; usd?: number; signature?: string };
+  const why = await addNote(String(b.commitment ?? "").replace(/^0x/, ""), Math.round(Number(b.usd ?? 0) * 1e6), String(b.signature ?? "admin"));
+  return why ? err(400, why) : c.json({ ok: true, ...(await treeState()) });
+});
+
 /** Open signup: an API key with an empty balance. Rate-limited per IP. */
 const signups = new Map<string, number[]>();
 app.post("/v1/accounts", async (c) => {
@@ -182,6 +191,23 @@ app.get("/v1/balance", async (c) => {
   return c.json({ balance_usd: account.balanceMicros / 1e6 });
 });
 
+/** Anonymous credits: how to buy a note, the public tree to prove against, and redemption with a zero-knowledge proof. */
+app.get("/v1/credits", async (c) => {
+  const t = treasury();
+  return c.json({
+    ...(await treeState()),
+    denominations_usd: DENOMS.map((d) => d / 1e6),
+    deposit: t ? { chain: "solana", mint: USDC_MINT.toBase58(), to: t.owner.toBase58(), memo: "tinted:note:<commitment hex>" } : null,
+    circuit: { wasm: "https://tinted.market/zk/credit.wasm", zkey: "https://tinted.market/zk/credit.zkey", vkSha256: vkHash, source: "https://github.com/tintedmarket/tinted-gateway/tree/main/zk" },
+  });
+});
+app.get("/v1/credits/leaves", async (c) => c.json(await leaves(Math.max(0, Number(c.req.query("from") ?? 0) || 0))));
+app.post("/v1/credits/redeem", async (c) => {
+  const b = (await c.req.json().catch(() => ({}))) as { proof?: unknown; publicSignals?: string[]; keyHash?: string };
+  const r = await redeem({ proof: b.proof, publicSignals: b.publicSignals ?? [], keyHash: String(b.keyHash ?? "") }).catch((e) => ({ ok: false as const, error: `couldn't redeem: ${String(e).slice(0, 120)}` }));
+  return r.ok ? c.json({ ok: true, credited_usd: r.denomMicros / 1e6, new_key: r.newAccount }) : err(400, r.error, "redeem_error");
+});
+
 const tee = await initTee();
 // Background jobs: re-verify every listing every 10 min (keeps /v1/market fresh), credit deposits every 30 s, anchor receipts on Solana every TINTED_ANCHOR_MINUTES (default 60).
 const verifyAll = async () => {
@@ -193,6 +219,7 @@ const verifyAll = async () => {
 void verifyAll();
 setInterval(() => void verifyAll(), 10 * 60_000);
 setInterval(() => void pollDeposits().catch((e) => console.error("deposits", String(e).slice(0, 200))), 30_000);
+setInterval(() => void anchorNotes().then((r) => r.signature && console.log("notes anchored", r.signature)).catch((e) => console.error("notes anchor", String(e).slice(0, 200))), 10 * 60_000);
 setInterval(() => void anchorPending().then((r) => r.anchored && console.log("anchored", r)).catch((e) => console.error("anchor", String(e).slice(0, 200))), Number(process.env.TINTED_ANCHOR_MINUTES ?? 60) * 60_000);
 const port = Number(process.env.PORT ?? 8787);
 // overrideGlobalObjects off: the Intel quote verifier (wasm) checks `instanceof Response` on its own fetches.

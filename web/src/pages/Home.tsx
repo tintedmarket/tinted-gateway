@@ -178,7 +178,7 @@ const WHO: [string, string, string][] = [
   ["The cloud or GPU host", "Can dump memory at any time", "Memory is encrypted by the CPU and GPU, keys never leave the chip"],
   ["Tinted, the operator", "A normal router sees everything it relays", "The gateway runs in its own attested enclave. Check it on /verify"],
   ["Whoever breaches the logs later", "Gets every conversation", "Gets hashes. Receipts never contain your text"],
-  ["Your payment trail", "Card, email and name on file", "A key and a USDC memo. Next: zero-knowledge credits that unlink even that"],
+  ["Your payment trail", "Card, email and name on file", "Anonymous credits: a zero-knowledge proof unlinks the wallet that paid from the key that prompts"],
 ];
 
 function Compare() {
@@ -242,7 +242,8 @@ const ROADMAP: [string, string, string][] = [
   ["Live", "Signed receipts", "Every response is signed by a key born inside Tinted's own enclave."],
   ["Live", "Receipts on Solana", "Hourly Merkle roots posted by an enclave-held Solana key: nothing can be quietly rewritten."],
   ["Live", "USDC on Solana", "Prepaid credits, no account, no card, no KYC."],
-  ["Next", "Anonymous credits", "Zero-knowledge credit notes: deposit once, spend without any link between your wallet and your prompts."],
+  ["Live", "Anonymous credits", "Zero-knowledge credit notes: pay from any wallet, redeem with a Groth16 proof, and nobody can link the two."],
+  ["Next", "End-to-end TLS into the enclave", "api.tinted.market with its certificate key generated and held inside Tinted's enclave."],
   ["Next", "Streaming and more providers", "Token streaming through the glass, and new enclave providers as they pass the proofs."],
 ];
 
@@ -251,8 +252,8 @@ const FAQ: [string, ReactNode][] = [
   ["What does \"claimed\" mean?", "The provider states it, but we couldn't prove it from vendor-signed evidence. Most often that's the exact model weights. You can require proved weights per request, and the call is refused otherwise."],
   ["What happens when a proof fails?", "The listing is held back. It stays visible in the market with the reason, and no request is sent to it until it passes again."],
   ["Am I getting the real model?", "For listings with proved weights, yes: the weights are pinned to a repository revision and a hash in the measured image. For others the provider's statement is shown as exactly that."],
-  ["Why Solana?", "Payments in USDC settle in seconds for fractions of a cent, and the receipt log needs a public, cheap, permanent place to live. Anonymous credits will be a Solana program."],
-  ["Is it anonymous?", "Keys need no email or wallet connect. Deposits are linked to a key by a memo today; zero-knowledge credits remove that link next."],
+  ["Why Solana?", "Payments in USDC settle in seconds for fractions of a cent, and the receipt log and the anonymous-credit tree need a public, cheap, permanent place to live."],
+  ["Is it anonymous?", "Keys need no email or wallet connect. For full unlinkability use anonymous credits: you buy a note from your wallet, then redeem it with a zero-knowledge proof that shows the note was paid for without revealing which payment was yours."],
 ];
 
 function Faq() {
@@ -328,7 +329,7 @@ export function Home() {
                 <span className="text-proof">→</span> no account, no email, no KYC
               </li>
               <li>
-                <span className="text-proof">→</span> prepaid in USDC on Solana
+                <span className="text-proof">→</span> prepaid in USDC on Solana, or anonymously with ZK credits
               </li>
               <li>
                 <span className="text-proof">→</span> x-tinted-require-weights: 1 for proved weights only

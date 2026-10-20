@@ -79,7 +79,25 @@ POST /v1/chat/completions           (Bearer key)
 GET  /v1/receipts/:id               signed receipt + Solana anchor
 POST /v1/accounts                   new anonymous key
 GET  /v1/balance  /v1/deposit       (Bearer key)
+GET  /v1/credits                     anonymous credits: tree root, sizes, circuit
+GET  /v1/credits/leaves?from=N      every note commitment, in tree order
+POST /v1/credits/redeem             { proof, publicSignals, keyHash }
 GET  /attestation                   Tinted's own TDX quote and bound keys`}</Code>
+        </Sec>
+        <Sec title="Anonymous credits">
+          <p>
+            A note is two random secrets made in your browser. Its commitment, Poseidon(nullifierSecret, secret, amount), goes in the USDC memo when you pay $10, $50 or
+            $200 (<code className="font-mono">tinted:note:&lt;hex&gt;</code>) and joins a public 20-level Merkle tree whose root Tinted's enclave posts to Solana.
+          </p>
+          <p>
+            To redeem, your browser downloads the whole tree, finds the note locally and makes a Groth16 proof that it knows the secrets of some leaf, revealing only
+            Poseidon(nullifierSecret) so it can't be spent twice. The proof is bound to sha256 of the API key it credits, which your browser generates, so nobody can redirect
+            it. Proving takes about half a second.
+          </p>
+          <p>
+            Setup: phase 1 is the PSE Perpetual Powers of Tau (80 contributions); phase 2 had a fresh contribution sealed with a Solana blockhash as a public random beacon. The
+            circuit, transcript and verifying key are in <a className="text-proof underline" href="https://github.com/tintedmarket/tinted-gateway/tree/main/zk">/zk</a>.
+          </p>
         </Sec>
         <Sec title="Paying">
           <p>

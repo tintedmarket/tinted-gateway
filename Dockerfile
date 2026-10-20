@@ -7,6 +7,7 @@ COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --ignore-scripts && npm cache clean --force
 COPY src ./src
 COPY scripts ./scripts
+COPY zk/vk.json ./zk/vk.json
 RUN mkdir -p /app/.data && chown -R node:node /app
 USER node
 EXPOSE 8787

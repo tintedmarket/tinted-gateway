@@ -1,0 +1,35 @@
+Reading r1cs
+Reading tauG1
+Reading tauG2
+Reading alphatauG1
+Reading betatauG1
+Circuit hash: 
+		5b4b5271 8629f275 ace81fcd f9e934ee
+		6f50033a e917cf83 3cf1ad07 e8446b1b
+		97930cf3 db80d9b1 4db8152e d28cffe0
+		122b138a d1b485f1 d03d8691 441baae8
+Circuit Hash: 
+		5b4b5271 8629f275 ace81fcd f9e934ee
+		6f50033a e917cf83 3cf1ad07 e8446b1b
+		97930cf3 db80d9b1 4db8152e d28cffe0
+		122b138a d1b485f1 d03d8691 441baae8
+-------------------------
+contribution #2 Solana finalized blockhash 6FcKTZVLrtTxnRm7zZTzhCuVWMRv1weiHhJrn:
+		46a8ef3f 2d3ac106 8e792371 c361a41e
+		87814ea9 a5b3131e b2a0b74e 3fbbf9db
+		a6a97da2 5be964c2 89cc309e 4e11df1e
+		3af4323e ae933635 6e175104 2b42a892
+Beacon generator: 4e08801b8c73cacc1a7f148d7a7caecd3dd2a230fab432f1eb098754e491efec
+Beacon iterations Exp: 10
+-------------------------
+contribution #1 tinted #1:
+		de5cf660 58556c3f 33dfb660 5c885414
+		7ef881b2 9cf842ed d397de28 8487ef22
+		9ea5ad99 e2f4cb98 44b311a1 cedc9a8c
+		1e99040f 4ceb3350 d737a635 f06d074a
+-------------------------
+ZKey Ok!
+b32a1dfe86b6e88ff1877bb0949765d6052543f7f448c343fec933d138cd166d *build/credit.zkey
+fbb8f6271da3ecbe47323e6fe3c9ac5df4a4375d165cbd6b056aab65848ec438 *build/credit_js/credit.wasm
+2e2076a0e190acd231597e09bc81bf5b5cb0d94336c6e184ce0616abe36ae23a *vk.json
+902de551b70e40eb9d7679d2e401c8b8d672edbe36264f055072abf8af1fc6c8 *credit.circom

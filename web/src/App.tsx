@@ -1,12 +1,14 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { Home } from "./pages/Home";
 import { Market } from "./pages/Market";
 import { Chat } from "./pages/Chat";
 import { Account } from "./pages/Account";
 import { Verify } from "./pages/Verify";
 import { Docs } from "./pages/Docs";
+// The ZK prover is heavy: load it only on the credits page.
+const Credits = lazy(() => import("./pages/Credits").then((m) => ({ default: m.Credits })));
 
-const ROUTES = { home: "Home", market: "Market", chat: "Chat", account: "Account", verify: "Verify", docs: "Docs" } as const;
+const ROUTES = { home: "Home", market: "Market", chat: "Chat", account: "Account", credits: "Anonymous", verify: "Verify", docs: "Docs" } as const;
 type Route = keyof typeof ROUTES;
 
 function parse(): { route: Route; arg: string } {
@@ -50,6 +52,11 @@ export function App() {
         {route === "account" && <Account />}
         {route === "verify" && <Verify initialId={arg} />}
         {route === "docs" && <Docs />}
+        {route === "credits" && (
+          <Suspense fallback={<div className="text-sm text-ink-3">Loading the prover…</div>}>
+            <Credits />
+          </Suspense>
+        )}
       </main>
       <footer className="mx-auto max-w-6xl px-4 pb-10 text-xs text-ink-3">
         Tinted runs inside an attested enclave. Don't take our word for it: <a className="underline hover:text-ink" href="#/verify">verify the gateway</a> ·{" "}
