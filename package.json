@@ -21,6 +21,7 @@
     "@noble/hashes": "^1.8.0",
     "@phala/dcap-qvl-node": "^0.3.3",
     "@phala/dstack-sdk": "^0.5.8",
+    "@solana/web3.js": "^1.99.0",
     "hono": "^4.13.13",
     "tinfoil": "^1.2.2"
   },

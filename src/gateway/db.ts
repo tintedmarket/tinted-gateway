@@ -42,6 +42,13 @@ const SCHEMA = [
      receipt_id text,
      created_at timestamptz not null default now())`,
   `create index if not exists usage_account on usage (account_id, created_at)`,
+  `alter table accounts add column if not exists deposit_code text unique`,
+  `create table if not exists deposits (
+     signature text primary key,
+     account_id text,
+     amount_micros bigint not null,
+     memo text,
+     seen_at timestamptz not null default now())`,
   `create table if not exists receipts (
      id text primary key,
      account_id text not null,

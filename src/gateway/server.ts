@@ -7,6 +7,10 @@ import { cachedVerification, costMicros, findListing, listings, MARGIN, verifica
 import { checkReceipt, makeReceipt, receiptKey, type Receipt } from "./receipts.ts";
 import { meetsPolicy } from "../verify/types.ts";
 import { attestation, initTee } from "./tee.ts";
+import { cors } from "hono/cors";
+import { depositCode, depositMemo, pollDeposits, treasury } from "./deposits.ts";
+import { anchorPending } from "./anchor.ts";
+import { USDC_MINT } from "./solana.ts";
 
 /**
  * Tinted gateway: an OpenAI-compatible API over confidential inference providers. Every request is routed only to an
@@ -15,6 +19,8 @@ import { attestation, initTee } from "./tee.ts";
  * stored or logged.
  */
 const app = new Hono();
+// The website calls the gateway straight from the browser, so prompts never pass through the web host.
+app.use("*", cors({ origin: (o) => (/^https:\/\/([a-z0-9-]+\.)*tinted\.market$/.test(o) || /^http:\/\/localhost(:\d+)?$/.test(o) ? o : null), allowHeaders: ["authorization", "content-type", "x-tinted-require-weights"], exposeHeaders: ["x-tinted-receipt", "x-tinted-verified"] }));
 const err = (status: number, message: string, type = "invalid_request_error") => new Response(JSON.stringify({ error: { message, type } }), { status, headers: { "content-type": "application/json" } });
 
 async function auth(header: string | undefined) {
@@ -99,10 +105,10 @@ app.post("/v1/chat/completions", async (c) => {
 /** A receipt: public (hashes and verification results only, no account), with its signature checkable by anyone. */
 app.get("/v1/receipts/:id", async (c) => {
   const q = await db();
-  const [r] = await q<{ body: Receipt | string; signature: string }>("select body, signature from receipts where id = $1", [c.req.param("id")]);
+  const [r] = await q<{ body: Receipt | string; signature: string; anchor: unknown }>("select body, signature, anchor from receipts where id = $1", [c.req.param("id")]);
   if (!r) return err(404, "unknown receipt");
   const body = typeof r.body === "string" ? (JSON.parse(r.body) as Receipt) : r.body;
-  return c.json({ receipt: body, signature: r.signature, signatureValid: checkReceipt(body, r.signature) });
+  return c.json({ receipt: body, signature: r.signature, signatureValid: checkReceipt(body, r.signature), anchor: r.anchor ?? null });
 });
 
 /** Operator endpoints (TINTED_ADMIN_TOKEN, a sealed env var): create accounts and add credit until Solana deposits ship. */
@@ -124,6 +130,26 @@ app.post("/admin/credit", async (c) => {
   return c.json({ ok: true });
 });
 
+/** Open signup: an API key with an empty balance. Rate-limited per IP. */
+const signups = new Map<string, number[]>();
+app.post("/v1/accounts", async (c) => {
+  const ip = c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  const recent = (signups.get(ip) ?? []).filter((t) => Date.now() - t < 3600_000);
+  if (recent.length >= 5) return err(429, "too many new keys from this address: try again later", "rate_limited");
+  signups.set(ip, [...recent, Date.now()]);
+  return c.json(await createAccount("signup", 0));
+});
+
+/** How to add credit: send USDC on Solana to the treasury with this memo. */
+app.get("/v1/deposit", async (c) => {
+  const account = await auth(c.req.header("authorization"));
+  if (!account) return err(401, "invalid API key", "authentication_error");
+  const t = treasury();
+  if (!t) return err(503, "deposits aren't open yet");
+  const code = await depositCode(account.id);
+  return c.json({ chain: "solana", mint: USDC_MINT.toBase58(), to: t.owner.toBase58(), tokenAccount: t.usdcAccount.toBase58(), memo: depositMemo(code), note: "Send USDC with this memo; it's credited within about a minute. Without the memo it can't be matched." });
+});
+
 app.get("/v1/balance", async (c) => {
   const account = await auth(c.req.header("authorization"));
   if (!account) return err(401, "invalid API key", "authentication_error");
@@ -131,6 +157,9 @@ app.get("/v1/balance", async (c) => {
 });
 
 const tee = await initTee();
+// Background jobs: credit deposits every 30 s, anchor receipts on Solana every TINTED_ANCHOR_MINUTES (default 60).
+setInterval(() => void pollDeposits().catch((e) => console.error("deposits", String(e).slice(0, 200))), 30_000);
+setInterval(() => void anchorPending().then((r) => r.anchored && console.log("anchored", r)).catch((e) => console.error("anchor", String(e).slice(0, 200))), Number(process.env.TINTED_ANCHOR_MINUTES ?? 60) * 60_000);
 const port = Number(process.env.PORT ?? 8787);
 // overrideGlobalObjects off: the Intel quote verifier (wasm) checks `instanceof Response` on its own fetches.
 serve({ fetch: app.fetch, port, overrideGlobalObjects: false });

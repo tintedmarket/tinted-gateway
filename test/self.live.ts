@@ -6,8 +6,8 @@ const URL_ = process.argv[2] ?? "https://f5cd74b3a21a2ca3cfbdfb072c61c470e18c992
 const a = (await (await fetch(`${URL_}/attestation`)).json()) as { receiptKey: string; quote: string; eventLog: string; appCompose: string };
 const tdx = await verifyTdxQuote(a.quote.replace(/^0x/, ""));
 console.log("TDX:", tdx.status, "advisories", JSON.stringify(tdx.advisories), "debug", tdx.debug);
-const want = createHash("sha256").update(`tinted-receipt-key:${a.receiptKey}`).digest("hex") + "0".repeat(64);
-console.log("receipt key bound in report_data:", tdx.reportData.toLowerCase() === want);
+const want = createHash("sha256").update((a as unknown as { boundKeys?: string }).boundKeys ?? `tinted-receipt-key:${a.receiptKey}`).digest("hex") + "0".repeat(64);
+console.log("keys bound in report_data:", tdx.reportData.toLowerCase() === want, (a as unknown as { boundKeys?: string }).boundKeys ?? "");
 const replay = replayRtmr3(JSON.parse(a.eventLog));
 console.log("event log replays to RTMR3:", replay.rtmr3 === tdx.rtmr[3].toLowerCase());
 const composeHash = sha256Hex(a.appCompose);
