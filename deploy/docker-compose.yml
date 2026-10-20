@@ -19,5 +19,26 @@ services:
     volumes:
       - /var/run/dstack.sock:/var/run/dstack.sock
       - tinted-data:/app/.data
+  # api.tinted.market: TLS terminated inside this VM. The certificate key is derived from the app's KMS key
+  # (DETERMINISTIC_TLS_KEY) and never leaves the VM; the Phala gateway only forwards ciphertext by SNI. The certificate
+  # and an attestation over it are served at https://api.tinted.market/evidences/. tls-alpn-01: no DNS credentials here.
+  ingress:
+    image: ghcr.io/dstack-tee/dstack-ingress:2.8@sha256:60e682449534715a2f2e5b72326ca4229209c8e26c931c6f34d27e02200ac086
+    restart: always
+    ports:
+      - "443:443"
+    environment:
+      - CHALLENGE_TYPE=tls-alpn-01
+      - DOMAIN=api.tinted.market
+      - TARGET_ENDPOINT=http://gateway:8787
+      - GATEWAY_DOMAIN=gateway.dstack-pha-prod5.phala.network
+      - DETERMINISTIC_TLS_KEY=true
+      - DNS_SETUP_MODE=wait
+    volumes:
+      - /var/run/dstack.sock:/var/run/dstack.sock
+      - tinted-certs:/etc/letsencrypt
+      - tinted-evidences:/evidences
 volumes:
   tinted-data:
+  tinted-certs:
+  tinted-evidences:

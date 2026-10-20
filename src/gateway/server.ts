@@ -168,9 +168,11 @@ app.post("/admin/notes", async (c) => {
 /** Open signup: an API key with an empty balance. Rate-limited per IP. */
 const signups = new Map<string, number[]>();
 app.post("/v1/accounts", async (c) => {
-  const ip = c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  // Through api.tinted.market TLS ends inside this VM and no proxy adds the client address, so those signups share
+  // one wider bucket; the Phala gateway URL still forwards it per client.
+  const ip = c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ?? "shared";
   const recent = (signups.get(ip) ?? []).filter((t) => Date.now() - t < 3600_000);
-  if (recent.length >= 5) return err(429, "too many new keys from this address: try again later", "rate_limited");
+  if (recent.length >= (ip === "shared" ? 120 : 5)) return err(429, "too many new keys from this address: try again later", "rate_limited");
   signups.set(ip, [...recent, Date.now()]);
   return c.json(await createAccount("signup", 0));
 });
