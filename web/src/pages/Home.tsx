@@ -243,12 +243,12 @@ const ROADMAP: [string, string, string][] = [
   ["Live", "Receipts on Solana", "Hourly Merkle roots posted by an enclave-held Solana key: nothing can be quietly rewritten."],
   ["Live", "USDC on Solana", "Prepaid credits, no account, no card, no KYC."],
   ["Live", "Anonymous credits", "Zero-knowledge credit notes: pay from any wallet, redeem with a Groth16 proof, and nobody can link the two."],
-  ["Next", "End-to-end TLS into the enclave", "api.tinted.market with its certificate key generated and held inside Tinted's enclave."],
+  ["Live", "TLS that ends in the enclave", "api.tinted.market's certificate key is derived and held inside Tinted's enclave, with an attestation over the certificate."],
   ["Next", "Streaming and more providers", "Token streaming through the glass, and new enclave providers as they pass the proofs."],
 ];
 
 const FAQ: [string, ReactNode][] = [
-  ["Can Tinted read my prompts?", "No. Your browser or client talks to a gateway that runs inside an Intel TDX enclave. Its code is open source, pinned by image digest, and the hardware quote proves which build is running. It forwards to a provider enclave over a channel that terminates inside that enclave. Check it yourself on the Verify page."],
+  ["Can Tinted read my prompts?", "No. Your browser or client opens TLS straight into a gateway running inside an Intel TDX enclave: api.tinted.market's certificate key exists only in there. Its code is open source, pinned by image digest, and the hardware quote proves which build is running. It forwards to a provider enclave over a channel that terminates inside that enclave. Check it yourself on the Verify page."],
   ["What does \"claimed\" mean?", "The provider states it, but we couldn't prove it from vendor-signed evidence. Most often that's the exact model weights. You can require proved weights per request, and the call is refused otherwise."],
   ["What happens when a proof fails?", "The listing is held back. It stays visible in the market with the reason, and no request is sent to it until it passes again."],
   ["Am I getting the real model?", "For listings with proved weights, yes: the weights are pinned to a repository revision and a hash in the measured image. For others the provider's statement is shown as exactly that."],

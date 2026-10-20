@@ -3,7 +3,7 @@
 > OpenAI-compatible inference where every model runs inside a hardware enclave (TEE). Before each call the gateway verifies the CPU enclave (Intel TDX / AMD SEV-SNP), the GPU enclave (NVIDIA CC), the code, the model weights and the keys. Payments are prepaid USDC on Solana; every response gets an ed25519-signed receipt, anchored hourly on Solana.
 
 ## Use it
-- Base URL: https://f5cd74b3a21a2ca3cfbdfb072c61c470e18c9924-8787.dstack-pha-prod5.phala.network/v1
+- Base URL: https://api.tinted.market/v1
 - Auth: `Authorization: Bearer tnt_...` (create one: `POST /v1/accounts`, no body)
 - Chat: `POST /v1/chat/completions` (OpenAI format, stream=false)
 - Optional header `x-tinted-require-weights: 1` refuses calls unless model weights are proved

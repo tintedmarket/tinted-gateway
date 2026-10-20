@@ -1,5 +1,5 @@
 /** The gateway is called straight from the browser: prompts never pass through the website's host. */
-export const GATEWAY = (import.meta.env.VITE_GATEWAY as string | undefined) ?? "https://f5cd74b3a21a2ca3cfbdfb072c61c470e18c9924-8787.dstack-pha-prod5.phala.network";
+export const GATEWAY = (import.meta.env.VITE_GATEWAY as string | undefined) ?? "https://api.tinted.market";
 
 export type ClaimState = "verified" | "provider" | "failed" | "unknown";
 export const CLAIMS = ["hardware", "gpu", "software", "weights", "keys"] as const;

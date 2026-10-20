@@ -42,6 +42,16 @@ function Gateway({ a }: { a: Attestation | null }) {
       {checks.map((c) => (
         <Row key={c.label} c={c} />
       ))}
+      <Row
+        c={{
+          label: "TLS ends inside the enclave",
+          ok: null,
+          detail: "api.tinted.market's certificate key is derived inside the VM; the certificate, ACME account and a TDX quote over both are at api.tinted.market/evidences/",
+        }}
+      />
+      <a className="mt-1 ml-8 inline-block font-mono text-[11px] text-proof underline" href="https://api.tinted.market/evidences/" target="_blank" rel="noreferrer">
+        open the TLS evidence ↗
+      </a>
       <p className="mt-4 text-xs text-ink-3">
         Your browser checked that the quote commits to these keys. Checking the quote's Intel signature chain and the measured code needs a few MB of collateral, so it runs as a
         script: <Mono>node test/self.live.ts</Mono> in the{" "}
