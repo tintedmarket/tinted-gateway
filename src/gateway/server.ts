@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { serve } from "@hono/node-server";
-import { accountForKey, charge } from "./accounts.ts";
+import { timingSafeEqual } from "node:crypto";
+import { accountForKey, charge, createAccount, credit } from "./accounts.ts";
 import { db } from "./db.ts";
 import { cachedVerification, costMicros, findListing, listings, MARGIN, verificationFor } from "./market.ts";
 import { checkReceipt, makeReceipt, receiptKey, type Receipt } from "./receipts.ts";
@@ -102,6 +103,25 @@ app.get("/v1/receipts/:id", async (c) => {
   if (!r) return err(404, "unknown receipt");
   const body = typeof r.body === "string" ? (JSON.parse(r.body) as Receipt) : r.body;
   return c.json({ receipt: body, signature: r.signature, signatureValid: checkReceipt(body, r.signature) });
+});
+
+/** Operator endpoints (TINTED_ADMIN_TOKEN, a sealed env var): create accounts and add credit until Solana deposits ship. */
+function isAdmin(header: string | undefined) {
+  const want = process.env.TINTED_ADMIN_TOKEN;
+  const got = header?.replace(/^Bearer\s+/i, "") ?? "";
+  return !!want && got.length === want.length && timingSafeEqual(Buffer.from(got), Buffer.from(want));
+}
+app.post("/admin/accounts", async (c) => {
+  if (!isAdmin(c.req.header("authorization"))) return err(401, "not allowed", "authentication_error");
+  const b = (await c.req.json().catch(() => ({}))) as { label?: string; usd?: number };
+  return c.json(await createAccount(String(b.label ?? "account").slice(0, 60), Math.round(Number(b.usd ?? 0) * 1e6)));
+});
+app.post("/admin/credit", async (c) => {
+  if (!isAdmin(c.req.header("authorization"))) return err(401, "not allowed", "authentication_error");
+  const b = (await c.req.json().catch(() => ({}))) as { account?: string; usd?: number };
+  if (!b.account) return err(400, "account is required");
+  await credit(b.account, Math.round(Number(b.usd ?? 0) * 1e6));
+  return c.json({ ok: true });
 });
 
 app.get("/v1/balance", async (c) => {

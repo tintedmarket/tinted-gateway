@@ -51,12 +51,27 @@ export async function verifyTdxQuote(quoteHex: string): Promise<TdxResult> {
   };
 }
 
+/**
+ * A dstack runtime event's digest: SHA-384(event_type as u32 LE ‖ ":" ‖ event ‖ ":" ‖ payload). Newer dstack event logs
+ * omit the digest field, so it's computed from the event itself (which also means a log can't carry a digest that
+ * disagrees with its own content).
+ */
+function runtimeDigest(e: { event_type?: number; event?: string; event_payload?: string }): Buffer {
+  const type = Buffer.alloc(4);
+  type.writeUInt32LE((e.event_type ?? 0) >>> 0);
+  return createHash("sha384")
+    .update(Buffer.concat([type, Buffer.from(":"), Buffer.from(e.event ?? ""), Buffer.from(":"), Buffer.from(e.event_payload ?? "", "hex")]))
+    .digest();
+}
+
 /** Replay the dstack event log into RTMR3 and pull out the named events (compose-hash, os-image-hash, …). */
-export function replayRtmr3(eventLog: { imr: number; digest: string; event?: string; event_payload?: string }[]) {
+export function replayRtmr3(eventLog: { imr: number; digest: string; event_type?: number; event?: string; event_payload?: string }[]) {
   let r = Buffer.alloc(48);
   const events: Record<string, string> = {};
   for (const e of eventLog.filter((x) => x.imr === 3)) {
-    r = createHash("sha384").update(Buffer.concat([r, Buffer.from(e.digest, "hex")])).digest();
+    const d = e.digest ? Buffer.from(e.digest, "hex") : runtimeDigest(e);
+    if (e.digest && e.event && !runtimeDigest(e).equals(d)) throw new Error(`event ${e.event}: digest does not match its content`);
+    r = createHash("sha384").update(Buffer.concat([r, d])).digest();
     if (e.event) events[e.event] = e.event_payload ?? "";
   }
   return { rtmr3: r.toString("hex"), events };
