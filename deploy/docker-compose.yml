@@ -3,7 +3,7 @@
 # Secrets (provider API keys) are passed as Phala Cloud encrypted env vars, decrypted only inside the VM.
 services:
   gateway:
-    image: ghcr.io/tintedmarket/tinted-gateway@sha256:4c6444b248572a54250d70bda6a38dc942c4f54889b5dda0aa9c5809f7ca58fc
+    image: ghcr.io/tintedmarket/tinted-gateway@sha256:8247a4c7b19f175030fbb3e8cf5568a734fd6c7a8990784683281c18a30bf4c0
     restart: always
     ports:
       - "8787:8787"
@@ -11,6 +11,9 @@ services:
       - REDPILL_API_KEY
       - TINFOIL_API_KEY
       - TINTED_ADMIN_TOKEN
+      - SOLANA_RPC_URL
+      - TINTED_TREASURY
+      - TINTED_ANCHOR_MINUTES=60
       - TINTED_MARGIN=0.15
       - PORT=8787
     volumes:
