@@ -5,7 +5,8 @@ import type { Verification } from "../verify/types.ts";
 
 /** The market: every provider's listings, their verification (cached), and our price. */
 export const MARGIN = () => Number(process.env.TINTED_MARGIN ?? 0.15);
-const VERIFY_TTL_MS = 10 * 60_000;
+// Just under the 10-minute sweep, so every sweep re-verifies instead of finding a cache entry seconds from expiry.
+const VERIFY_TTL_MS = 9 * 60_000;
 const LISTINGS_TTL_MS = 30 * 60_000;
 
 let providers: Provider[] | null = null;

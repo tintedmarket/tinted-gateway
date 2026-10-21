@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { api, CLAIMS, type ClaimName, type ClaimState, type MarketRow } from "../api";
-import { Badge, Button, CLAIM_HINT, CLAIM_LABEL, H, Pane } from "../ui";
+import { api, CLAIMS, type ClaimName, type MarketRow } from "../api";
+import { Badge, CLAIM_HINT, CLAIM_LABEL } from "../ui";
 import { go } from "../App";
 
 function Evidence({ id }: { id: string }) {
@@ -10,13 +10,13 @@ function Evidence({ id }: { id: string }) {
     api.verification(id).then(setV, (x) => setE(String(x.message ?? x)));
   }, [id]);
   if (e) return <div className="text-sm text-fail">{e}</div>;
-  if (!v) return <div className="text-sm text-ink-3">Checking the evidence…</div>;
+  if (!v) return <div className="font-mono text-xs text-ink-3">Fetching the evidence…</div>;
   return (
-    <div className="grid gap-2 sm:grid-cols-2">
+    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
       {CLAIMS.map((c) => (
-        <div key={c} className="rounded-md border border-edge bg-night/50 p-3">
+        <div key={c} className="rounded-xl border border-edge bg-night/60 p-3">
           <Badge name={c} state={v.claims[c].state} />
-          <p className="mt-2 font-mono text-[11.5px] leading-relaxed break-words text-ink-2">{v.claims[c].detail}</p>
+          <p className="mt-2 font-mono text-[11px] leading-relaxed break-words text-ink-2">{v.claims[c].detail}</p>
         </div>
       ))}
       <div className="self-end font-mono text-[11px] text-ink-3">checked {new Date(v.checkedAt).toLocaleString()}</div>
@@ -24,11 +24,15 @@ function Evidence({ id }: { id: string }) {
   );
 }
 
+type Sort = "proofs" | "price";
+
 export function Market() {
   const [rows, setRows] = useState<MarketRow[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [open, setOpen] = useState<string | null>(null);
-  const [onlyRoutable, setOnlyRoutable] = useState(true);
+  const [q, setQ] = useState("");
+  const [sort, setSort] = useState<Sort>("proofs");
+  const [weightsOnly, setWeightsOnly] = useState(false);
   useEffect(() => {
     const load = () => api.market().then((m) => setRows(m.listings), (e) => setErr(String(e.message ?? e)));
     load();
@@ -36,77 +40,116 @@ export function Market() {
     return () => clearInterval(t);
   }, []);
 
-  const sorted = useMemo(() => {
-    const score = (r: MarketRow) => (r.routable ? 100 : r.routable === null ? 50 : 0) + (r.claims ? CLAIMS.filter((c) => r.claims![c] === "verified").length : 0);
-    return (rows ?? []).filter((r) => !onlyRoutable || r.routable !== false).sort((a, b) => score(b) - score(a) || a.outputPerM - b.outputPerM);
-  }, [rows, onlyRoutable]);
-  const counts = useMemo(() => ({ all: rows?.length ?? 0, routable: rows?.filter((r) => r.routable).length ?? 0, weights: rows?.filter((r) => r.claims?.weights === "verified").length ?? 0 }), [rows]);
+  // Listings that failed a proof are off the market: they aren't shown at all.
+  const live = useMemo(() => (rows ?? []).filter((r) => r.routable !== false), [rows]);
+  const shown = useMemo(() => {
+    const proofs = (r: MarketRow) => (r.claims ? CLAIMS.filter((c) => r.claims![c] === "verified").length : 0) + (r.routable ? 10 : 0);
+    return live
+      .filter((r) => !q || (r.name + r.id).toLowerCase().includes(q.toLowerCase()))
+      .filter((r) => !weightsOnly || r.claims?.weights === "verified")
+      .sort((a, b) => (sort === "price" ? a.outputPerM - b.outputPerM : proofs(b) - proofs(a) || a.outputPerM - b.outputPerM));
+  }, [live, q, sort, weightsOnly]);
+  const providers = useMemo(() => new Set(live.filter((r) => r.routable).map((r) => r.provider)).size, [live]);
 
   return (
     <div>
-      <section>
-        <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-          <H kicker="Market" title="Every listing, with its proof.">
-            {rows ? `${counts.all} listings · ${counts.routable} pass every proof · ${counts.weights} with verified weights. Re-checked every 10 minutes.` : "Loading listings…"}
-          </H>
-          <label className="flex cursor-pointer items-center gap-2 text-sm text-ink-2">
-            <input type="checkbox" checked={onlyRoutable} onChange={(e) => setOnlyRoutable(e.target.checked)} className="accent-[#7fd1b9]" />
-            Hide listings that failed a proof
-          </label>
+      <header className="mb-8 grid gap-6 lg:grid-cols-[1fr_auto] lg:items-end">
+        <div>
+          <div className="font-mono text-[11px] tracking-[0.22em] text-proof uppercase">// Market</div>
+          <h1 className="mt-3 text-4xl font-semibold tracking-[-0.035em] sm:text-6xl">Every model, with its proof.</h1>
+          <p className="mt-3 max-w-2xl text-ink-2">Only listings that passed their proofs in the last 10 minutes are on the market. Prices are per million tokens, including Tinted's fee.</p>
         </div>
-        <div className="mb-4 flex flex-wrap gap-x-5 gap-y-1 text-xs text-ink-3">
-          {(["verified", "provider", "failed"] as ClaimState[]).map((s) => (
-            <span key={s} className="flex items-center gap-1.5">
-              <Badge name="keys" state={s} compact /> {s === "verified" ? "proved by Tinted against vendor roots" : s === "provider" ? "stated by the provider, not proved" : "proof failed: never routed"}
-            </span>
-          ))}
-        </div>
-        {err && <Pane className="p-4 text-sm text-fail">Couldn't reach the gateway: {err}</Pane>}
-        <div className="space-y-2">
-          {sorted.map((r) => (
-            <Pane key={r.id} className={r.routable ? "" : "opacity-70"}>
-              <div className="flex flex-wrap items-center gap-x-6 gap-y-3 p-4">
-                <div className="min-w-56 flex-1">
-                  <div className="font-medium">{r.name}</div>
-                  <div className="font-mono text-[11px] text-ink-3">{r.id}</div>
-                </div>
-                <div className="flex flex-wrap gap-1">
-                  {CLAIMS.map((c) => (
-                    <Badge key={c} name={c as ClaimName} state={r.claims?.[c] ?? "unknown"} compact />
-                  ))}
-                </div>
-                <div className="w-36 text-right font-mono text-[12px] text-ink-2">
-                  ${r.inputPerM.toFixed(2)} / ${r.outputPerM.toFixed(2)}
-                  <div className="text-[10px] text-ink-3">per 1M in / out</div>
-                </div>
-                <div className="flex gap-2">
-                  <Button kind="ghost" onClick={() => setOpen(open === r.id ? null : r.id)}>
-                    {open === r.id ? "Hide" : "Evidence"}
-                  </Button>
-                  <Button disabled={!r.routable} onClick={() => go("chat", r.id)}>
-                    Chat
-                  </Button>
-                </div>
-              </div>
-              {r.routable === false && r.whyNot && <div className="border-t border-edge px-4 py-2 font-mono text-[11px] text-fail/90">Not routed: {r.whyNot.join(" · ")}</div>}
-              {r.routable === null && <div className="border-t border-edge px-4 py-2 font-mono text-[11px] text-ink-3">Not checked yet: the gateway verifies every listing every 10 minutes.</div>}
-              {open === r.id && (
-                <div className="border-t border-edge p-4">
-                  <Evidence id={r.id} />
-                </div>
-              )}
-            </Pane>
-          ))}
-        </div>
-        <div className="mt-8 grid gap-3 sm:grid-cols-5">
-          {CLAIMS.map((c) => (
-            <div key={c} className="text-xs text-ink-3">
-              <div className="mb-1 text-ink-2">{CLAIM_LABEL[c]}</div>
-              {CLAIM_HINT[c]}
+        <div className="flex gap-6 font-mono">
+          {[
+            [rows ? live.filter((r) => r.routable).length : "…", "models live"],
+            [rows ? providers : "…", providers === 1 ? "provider" : "providers"],
+            [rows ? live.filter((r) => r.claims?.weights === "verified").length : "…", "weights proved"],
+          ].map(([v, l]) => (
+            <div key={l as string}>
+              <div className="text-3xl text-ink">{v}</div>
+              <div className="text-[11px] text-ink-3">{l}</div>
             </div>
           ))}
         </div>
-      </section>
+      </header>
+
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search models…" className="min-w-56 flex-1 rounded-xl border border-edge bg-pane px-4 py-2.5 text-sm outline-none focus:border-proof/50" />
+        <div className="flex rounded-xl border border-edge bg-pane p-1 text-xs">
+          {(["proofs", "price"] as Sort[]).map((s) => (
+            <button key={s} onClick={() => setSort(s)} className={`rounded-lg px-3 py-1.5 ${sort === s ? "bg-pane-2 text-ink" : "text-ink-3"}`}>
+              {s === "proofs" ? "Most proved" : "Cheapest"}
+            </button>
+          ))}
+        </div>
+        <button onClick={() => setWeightsOnly(!weightsOnly)} className={`rounded-xl border px-3 py-2.5 text-xs ${weightsOnly ? "border-proof/50 bg-proof/10 text-proof" : "border-edge bg-pane text-ink-3"}`}>
+          Weights proved
+        </button>
+      </div>
+
+      {err && <div className="rounded-xl border border-fail/40 p-4 text-sm text-fail">Couldn't reach the gateway: {err}</div>}
+
+      <div className="overflow-hidden rounded-2xl border border-edge bg-pane/50">
+        <div className="hidden grid-cols-[1.6fr_1.4fr_0.9fr_auto] gap-4 border-b border-edge px-5 py-3 font-mono text-[11px] text-ink-3 md:grid">
+          <span>model</span>
+          <span>proofs</span>
+          <span className="text-right">in / out · per 1M</span>
+          <span className="w-40" />
+        </div>
+        {!rows && !err && <div className="p-6 font-mono text-xs text-ink-3">Loading the market…</div>}
+        {shown.map((r) => (
+          <div key={r.id} className="border-b border-edge last:border-b-0">
+            <div className="grid items-center gap-x-4 gap-y-3 px-5 py-4 transition hover:bg-pane md:grid-cols-[1.6fr_1.4fr_0.9fr_auto]">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="truncate font-medium">{r.name}</span>
+                  {r.claims?.weights === "verified" && <span className="rounded-full bg-proof/15 px-2 py-0.5 font-mono text-[10px] text-proof">5/5</span>}
+                </div>
+                <div className="truncate font-mono text-[11px] text-ink-3">{r.id}</div>
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {CLAIMS.map((c) => (
+                  <Badge key={c} name={c as ClaimName} state={r.claims?.[c] ?? "unknown"} compact />
+                ))}
+              </div>
+              <div className="font-mono text-[13px] md:text-right">
+                <span className="text-ink-3">${r.inputPerM.toFixed(2)}</span> <span className="text-ink-3">/</span> <span className="text-ink">${r.outputPerM.toFixed(2)}</span>
+              </div>
+              <div className="flex w-40 justify-end gap-2">
+                <button onClick={() => setOpen(open === r.id ? null : r.id)} className="rounded-lg border border-edge px-3 py-1.5 text-xs text-ink-2 hover:text-ink">
+                  {open === r.id ? "Close" : "Evidence"}
+                </button>
+                <button disabled={!r.routable} onClick={() => go("chat", r.id)} className="rounded-lg bg-proof px-3 py-1.5 text-xs font-medium text-night disabled:opacity-30">
+                  {r.routable ? "Chat →" : "Checking"}
+                </button>
+              </div>
+            </div>
+            {open === r.id && (
+              <div className="border-t border-edge bg-night/40 p-5">
+                <Evidence id={r.id} />
+              </div>
+            )}
+          </div>
+        ))}
+        {rows && !shown.length && <div className="p-6 text-sm text-ink-3">No models match.</div>}
+      </div>
+
+      <div className="mt-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        {CLAIMS.map((c) => (
+          <div key={c} className="rounded-xl border border-edge p-4 text-xs text-ink-3">
+            <div className="mb-1 text-sm text-ink-2">{CLAIM_LABEL[c]}</div>
+            {CLAIM_HINT[c]}
+          </div>
+        ))}
+      </div>
+      <div className="mt-4 flex flex-wrap gap-x-5 gap-y-1 text-xs text-ink-3">
+        <span className="flex items-center gap-1.5">
+          <Badge name="keys" state="verified" compact /> proved by Tinted against vendor roots
+        </span>
+        <span className="flex items-center gap-1.5">
+          <Badge name="keys" state="provider" compact /> stated by the provider, not proved
+        </span>
+      </div>
     </div>
   );
 }

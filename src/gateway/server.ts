@@ -222,6 +222,8 @@ void verifyAll();
 setInterval(() => void verifyAll(), 10 * 60_000);
 setInterval(() => void pollDeposits().catch((e) => console.error("deposits", String(e).slice(0, 200))), 30_000);
 setInterval(() => void anchorNotes().then((r) => r.signature && console.log("notes anchored", r.signature)).catch((e) => console.error("notes anchor", String(e).slice(0, 200))), 10 * 60_000);
+// Also anchor shortly after boot, so a redeploy doesn't push pending receipts back another full interval.
+setTimeout(() => void anchorPending().then((r) => r.anchored && console.log("anchored", r)).catch((e) => console.error("anchor", String(e).slice(0, 200))), 2 * 60_000);
 setInterval(() => void anchorPending().then((r) => r.anchored && console.log("anchored", r)).catch((e) => console.error("anchor", String(e).slice(0, 200))), Number(process.env.TINTED_ANCHOR_MINUTES ?? 60) * 60_000);
 const port = Number(process.env.PORT ?? 8787);
 // overrideGlobalObjects off: the Intel quote verifier (wasm) checks `instanceof Response` on its own fetches.
