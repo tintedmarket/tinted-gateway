@@ -149,7 +149,7 @@ export function Credits() {
 
   return (
     <div>
-      <H kicker="Anonymous credits" title={<>Pay from your wallet. Spend from <em className="text-proof">nowhere.</em></>}>
+      <H kicker="Anonymous credits" title={<>Pay from your wallet. Spend from <em className="text-signal not-italic">nowhere.</em></>}>
         Buy a note with USDC, then redeem it with a zero-knowledge proof. The proof shows the note was paid for without showing which payment it was, so nobody can connect
         the wallet that paid to the key that prompts. Not even Tinted.
       </H>

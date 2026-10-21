@@ -20,14 +20,9 @@ export const go = (route: Route, arg = "") => (location.hash = `/${route}${arg ?
 
 function Logo() {
   return (
-    <a href="#/" className="flex items-center gap-2">
-      <svg viewBox="0 0 24 24" className="size-6">
-        <path d="M4 8 L12 4 L20 8 L20 16 L12 20 L4 16 Z" fill="none" stroke="#7fd1b9" strokeWidth="1.3" />
-        <path d="M4 8 L12 12 L20 8 M12 12 L12 20" stroke="#7fd1b9" strokeWidth="1.3" fill="none" opacity=".55" />
-        <path d="M12 4 L20 8 L12 12 L4 8 Z" fill="#7fd1b9" opacity=".25" />
-      </svg>
-      <span className="text-[17px] font-semibold tracking-[-0.02em]">tinted</span>
-      <span className="font-mono text-[11px] text-ink-3">.market</span>
+    <a href="#/" className="flex items-baseline gap-1.5">
+      <span className="inline-block size-3.5 translate-y-[1px] bg-ink" />
+      <span className="condensed text-2xl leading-none uppercase">Tinted</span>
     </a>
   );
 }
@@ -53,32 +48,32 @@ export function App() {
 
   return (
     <div className="min-h-screen overflow-x-clip">
-      <nav className="sticky top-3 z-30 mx-auto mt-3 max-w-6xl px-3">
-        <div className="flex items-center gap-4 rounded-2xl border border-edge bg-night/75 px-4 py-2.5 shadow-[0_10px_40px_-12px_rgba(0,0,0,.8)] backdrop-blur-xl">
+      <nav className="sticky top-0 z-30 border-b border-ink bg-night/95 backdrop-blur-sm">
+        <div className="mx-auto flex max-w-[1400px] items-center gap-6 px-4 py-3">
           <Logo />
-          <div className="ml-6 hidden gap-1 text-sm md:flex">
-            {NAV.map((r) => (
-              <a key={r} href={`#/${r}`} className={`rounded-lg px-3 py-1.5 transition ${r === route ? "bg-pane-2 text-ink" : "text-ink-3 hover:text-ink"}`}>
-                {ROUTES[r]}
+          <div className="ml-4 hidden gap-5 font-mono text-[12px] uppercase md:flex">
+            {NAV.map((r, k) => (
+              <a key={r} href={`#/${r}`} className={`hover:text-signal ${r === route ? "text-ink underline decoration-signal decoration-2 underline-offset-[6px]" : "text-ink-2"}`}>
+                <span className="text-ink-3">0{k + 1}</span> {ROUTES[r]}
               </a>
             ))}
           </div>
-          <div className="ml-auto flex items-center gap-2">
-            <a href="#/account" className="hidden rounded-lg border border-edge px-3 py-1.5 text-sm text-ink-2 hover:text-ink sm:block">
+          <div className="ml-auto flex items-center gap-3">
+            <a href="#/account" className="hidden font-mono text-[12px] text-ink-2 uppercase hover:text-signal sm:block">
               Account
             </a>
-            <a href="#/chat" className="rounded-lg bg-proof px-3.5 py-1.5 text-sm font-medium text-night hover:brightness-110">
+            <a href="#/chat" className="bg-ink px-4 py-2 text-[13px] font-semibold tracking-wide text-night uppercase hover:bg-signal">
               Open chat
             </a>
-            <button onClick={() => setOpen(!open)} className="grid size-9 place-items-center rounded-lg border border-edge md:hidden" aria-label="Menu">
-              <span className="font-mono text-ink-2">{open ? "×" : "≡"}</span>
+            <button onClick={() => setOpen(!open)} className="grid size-9 place-items-center border border-ink md:hidden" aria-label="Menu">
+              <span className="font-mono">{open ? "×" : "≡"}</span>
             </button>
           </div>
         </div>
         {open && (
-          <div className="mt-2 grid gap-1 rounded-2xl border border-edge bg-night/95 p-2 backdrop-blur-xl md:hidden">
+          <div className="grid border-t border-ink md:hidden">
             {[...NAV, "account" as Route].map((r) => (
-              <a key={r} href={`#/${r}`} className="rounded-lg px-3 py-2 text-ink-2 hover:bg-pane-2">
+              <a key={r} href={`#/${r}`} className="border-b border-edge px-4 py-3 font-mono text-[13px] uppercase">
                 {ROUTES[r]}
               </a>
             ))}
@@ -86,35 +81,31 @@ export function App() {
         )}
       </nav>
 
-      <main className="mx-auto max-w-6xl px-4 py-10">
-        {route === "home" && <Home />}
-        {route === "market" && <Market />}
-        {route === "chat" && <Chat initialModel={arg} />}
-        {route === "account" && <Account />}
-        {route === "verify" && <Verify initialId={arg} />}
-        {route === "docs" && <Docs />}
-        {route === "credits" && (
-          <Suspense fallback={<div className="text-sm text-ink-3">Loading the prover…</div>}>
-            <Credits />
-          </Suspense>
-        )}
+      <main className="mx-auto max-w-[1400px] px-4 pb-10">
+        <div className={route === "home" ? "" : "pt-12"}>
+          {route === "home" && <Home />}
+          {route === "market" && <Market />}
+          {route === "chat" && <Chat initialModel={arg} />}
+          {route === "account" && <Account />}
+          {route === "verify" && <Verify initialId={arg} />}
+          {route === "docs" && <Docs />}
+          {route === "credits" && (
+            <Suspense fallback={<div className="font-mono text-sm text-ink-3">Loading the prover…</div>}>
+              <Credits />
+            </Suspense>
+          )}
+        </div>
       </main>
 
-      <footer className="border-t border-edge">
-        <div className="mx-auto grid max-w-6xl gap-10 px-4 py-14 sm:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr_1fr]">
-          <div>
-            <Logo />
-            <p className="mt-4 max-w-xs text-sm text-ink-3">The Private Inference Market. Confidential models, proved on every call, paid on Solana.</p>
-            <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-edge px-3 py-1 font-mono text-[11px] text-ink-3">
-              <span className="size-1.5 animate-pulse rounded-full bg-proof" /> gateway attested
-            </div>
-          </div>
+      <footer className="border-t border-ink">
+        <div className="mx-auto grid max-w-[1400px] gap-10 px-4 py-12 sm:grid-cols-2 lg:grid-cols-[1.5fr_1fr_1fr_1fr]">
+          <p className="max-w-xs text-ink-2">The private inference market. Models in hardware enclaves, inspected before every call, paid on Solana.</p>
           {FOOTER.map(([title, links]) => (
             <div key={title}>
-              <div className="font-mono text-[11px] tracking-[0.18em] text-ink-3 uppercase">{title}</div>
-              <div className="mt-4 grid gap-2.5 text-sm">
+              <div className="font-mono text-[11px] text-ink-3 uppercase">{title}</div>
+              <div className="mt-3 grid gap-1.5">
                 {links.map(([l, h]) => (
-                  <a key={l} href={h} className="text-ink-2 hover:text-proof">
+                  <a key={l} href={h} className="hover:text-signal">
                     {l}
                   </a>
                 ))}
@@ -122,9 +113,11 @@ export function App() {
             </div>
           ))}
         </div>
-        <div className="mx-auto flex max-w-6xl flex-wrap justify-between gap-2 border-t border-edge px-4 py-5 font-mono text-[11px] text-ink-3">
-          <span>© {new Date().getFullYear()} Tinted</span>
-          <span>Don't trust. Verify.</span>
+        {/* the wordmark, half behind a strip of film */}
+        <div className="relative overflow-hidden border-t border-ink">
+          <div className="condensed px-2 text-center text-[24vw] leading-[0.78] uppercase select-none">Tinted</div>
+          <div className="film absolute inset-x-0 bottom-0 h-[46%]" />
+          <div className="absolute right-4 bottom-3 font-mono text-[11px] text-white/60 uppercase">Don't trust · verify</div>
         </div>
       </footer>
     </div>

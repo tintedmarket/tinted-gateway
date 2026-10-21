@@ -25,6 +25,7 @@ function Evidence({ id }: { id: string }) {
 }
 
 type Sort = "proofs" | "price";
+const usd = (n: number) => `$${n < 0.1 ? n.toFixed(3) : n.toFixed(2)}`;
 
 export function Market() {
   const [rows, setRows] = useState<MarketRow[] | null>(null);
@@ -53,21 +54,24 @@ export function Market() {
 
   return (
     <div>
-      <header className="mb-8 grid gap-6 lg:grid-cols-[1fr_auto] lg:items-end">
+      <header className="mb-10 grid gap-6 border-b border-ink pb-6 lg:grid-cols-[1fr_auto] lg:items-end">
         <div>
-          <div className="font-mono text-[11px] tracking-[0.22em] text-proof uppercase">// Market</div>
-          <h1 className="mt-3 text-4xl font-semibold tracking-[-0.035em] sm:text-6xl">Every model, with its proof.</h1>
-          <p className="mt-3 max-w-2xl text-ink-2">Only listings that passed their proofs in the last 10 minutes are on the market. Prices are per million tokens, including Tinted's fee.</p>
+          <div className="flex items-center gap-2 font-mono text-[11px] tracking-[0.12em] text-ink-2 uppercase">
+            <span className="inline-block size-2.5 bg-signal" />
+            Market
+          </div>
+          <h1 className="condensed mt-3 text-5xl leading-[0.9] uppercase sm:text-7xl">Every model, inspected.</h1>
+          <p className="mt-4 max-w-2xl text-lg text-ink-2">Only models that passed inspection in the last 10 minutes are listed. Prices are per million tokens, including Tinted's fee.</p>
         </div>
-        <div className="flex gap-6 font-mono">
+        <div className="flex gap-8 font-mono">
           {[
             [rows ? live.filter((r) => r.routable).length : "…", "models live"],
             [rows ? providers : "…", providers === 1 ? "provider" : "providers"],
             [rows ? live.filter((r) => r.claims?.weights === "verified").length : "…", "weights proved"],
           ].map(([v, l]) => (
             <div key={l as string}>
-              <div className="text-3xl text-ink">{v}</div>
-              <div className="text-[11px] text-ink-3">{l}</div>
+              <div className="condensed text-5xl">{v}</div>
+              <div className="text-[11px] text-ink-3 uppercase">{l}</div>
             </div>
           ))}
         </div>
@@ -103,7 +107,7 @@ export function Market() {
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="truncate font-medium">{r.name}</span>
-                  {r.claims?.weights === "verified" && <span className="rounded-full bg-proof/15 px-2 py-0.5 font-mono text-[10px] text-proof">5/5</span>}
+                  {r.claims?.weights === "verified" && <span className="border border-proof px-1.5 font-mono text-[10px] text-proof">5/5</span>}
                 </div>
                 <div className="truncate font-mono text-[11px] text-ink-3">{r.id}</div>
               </div>
@@ -113,13 +117,13 @@ export function Market() {
                 ))}
               </div>
               <div className="font-mono text-[13px] md:text-right">
-                <span className="text-ink-3">${r.inputPerM.toFixed(2)}</span> <span className="text-ink-3">/</span> <span className="text-ink">${r.outputPerM.toFixed(2)}</span>
+                <span className="text-ink-3">{usd(r.inputPerM)}</span> <span className="text-ink-3">/</span> <span className="text-ink">{usd(r.outputPerM)}</span>
               </div>
               <div className="flex w-40 justify-end gap-2">
                 <button onClick={() => setOpen(open === r.id ? null : r.id)} className="rounded-lg border border-edge px-3 py-1.5 text-xs text-ink-2 hover:text-ink">
                   {open === r.id ? "Close" : "Evidence"}
                 </button>
-                <button disabled={!r.routable} onClick={() => go("chat", r.id)} className="rounded-lg bg-proof px-3 py-1.5 text-xs font-medium text-night disabled:opacity-30">
+                <button disabled={!r.routable} onClick={() => go("chat", r.id)} className="bg-ink px-3 py-1.5 text-xs font-semibold text-night uppercase hover:bg-signal disabled:opacity-30">
                   {r.routable ? "Chat →" : "Checking"}
                 </button>
               </div>

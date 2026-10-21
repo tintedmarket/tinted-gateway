@@ -1,20 +1,26 @@
 @import "tailwindcss";
 
-/* Tinted: one-way glass. The page is the dark side of the pane; proofs are the light that comes through. */
+/*
+ * Tinted is window film. The site is printed matter about it: a spec sheet on warm paper, black ink, hairline rules,
+ * a film maker's vermillion sticker, and actual panes of smoked glass where the product does its job.
+ * Token names are kept from v1 so every page re-skins: "night" is now the paper, "pane" a darker stock.
+ */
 @theme {
-  --color-ink: #e8ece9;
-  --color-ink-2: #a7b0ad;
-  --color-ink-3: #6d7774;
-  --color-night: #07090b;
-  --color-pane: #0f1316;
-  --color-pane-2: #151b1f;
-  --color-edge: #232b30;
-  --color-proof: #7fd1b9;
-  --color-claim: #d6b56b;
-  --color-fail: #e5706a;
-  --font-display: "Instrument Serif", ui-serif, Georgia, serif;
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --color-night: #ebe8e1;
+  --color-pane: #e3dfd6;
+  --color-pane-2: #d9d4c9;
+  --color-edge: #b9b3a6;
+  --color-ink: #121211;
+  --color-ink-2: #3c3b37;
+  --color-ink-3: #77736a;
+  --color-proof: #1d6a45;
+  --color-claim: #8f6508;
+  --color-fail: #c0281c;
+  --color-signal: #ff4a1c;
+  --color-glass: #0d1012;
+  --font-display: "Archivo", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Archivo", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
 }
 
 html,
@@ -22,132 +28,101 @@ body {
   background: var(--color-night);
   color: var(--color-ink);
   font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+/* Paper grain, very faint. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 60;
+  opacity: 0.35;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.45 0 0 0 0 0.42 0 0 0 0 0.36 0 0 0 0.10 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
-/* The pane: smoked glass with a faint diagonal sheen, the product's mechanic as a surface. */
+/* Print, not app: no rounded corners anywhere unless asked for. */
+*:not(.round) {
+  border-radius: 0 !important;
+}
+
+.font-display,
+.condensed {
+  font-stretch: 64%;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+.wide {
+  font-stretch: 125%;
+}
+
+/* v1 surfaces, re-skinned as paper. */
 .pane {
-  background:
-    linear-gradient(115deg, rgba(127, 209, 185, 0.05) 0%, rgba(127, 209, 185, 0) 38%),
-    linear-gradient(180deg, rgba(21, 27, 31, 0.92), rgba(12, 15, 18, 0.92));
-  border: 1px solid var(--color-edge);
-  backdrop-filter: blur(14px);
-}
-.sheen {
-  position: relative;
-  overflow: hidden;
-}
-.sheen::after {
-  content: "";
-  position: absolute;
-  inset: -40% -10%;
-  background: linear-gradient(115deg, transparent 42%, rgba(232, 236, 233, 0.06) 50%, transparent 58%);
-  pointer-events: none;
+  background: var(--color-pane);
+  border: 1px solid var(--color-ink);
 }
 .glow {
-  box-shadow: 0 0 0 1px rgba(127, 209, 185, 0.25), 0 0 24px -6px rgba(127, 209, 185, 0.45);
-}
-::selection {
-  background: rgba(127, 209, 185, 0.3);
+  outline: 2px solid var(--color-ink);
+  outline-offset: 3px;
 }
 
-/* ---- v2 surfaces ---- */
-.grid-bg {
-  background-image:
-    linear-gradient(to right, rgba(35, 43, 48, 0.55) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(35, 43, 48, 0.55) 1px, transparent 1px);
-  background-size: 96px 96px;
-  mask-image: radial-gradient(ellipse 80% 70% at 50% 40%, #000 40%, transparent 100%);
+/* Smoked glass: the product, used only where it means something. */
+.film {
+  background:
+    linear-gradient(103deg, transparent 0 18%, rgba(255, 255, 255, 0.05) 18% 19.5%, transparent 19.5% 61%, rgba(255, 255, 255, 0.035) 61% 66%, transparent 66%),
+    linear-gradient(180deg, rgba(22, 27, 30, 0.95), rgba(9, 11, 12, 0.97));
+  color: #e9e6df;
 }
-.cross {
-  position: absolute;
-  width: 13px;
-  height: 13px;
-  color: var(--color-ink-3);
+.leader {
+  flex: 1;
+  border-bottom: 1.5px dotted var(--color-ink-3);
+  transform: translateY(-0.3em);
+  min-width: 1.5rem;
 }
-.cross::before,
-.cross::after {
-  content: "";
-  position: absolute;
-  background: currentColor;
-  opacity: 0.6;
+.stamp {
+  display: inline-block;
+  border: 2.5px solid currentColor;
+  padding: 0.15em 0.55em 0.1em;
+  font-stretch: 70%;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  transform: rotate(-4deg);
+  opacity: 0.88;
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='90' height='40'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='.8' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 -2.2 1.9'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
-.cross::before {
-  left: 6px;
-  top: 0;
-  width: 1px;
-  height: 13px;
+.perf {
+  background-image: radial-gradient(circle at 50% 50%, var(--color-night) 3.5px, transparent 4px);
+  background-size: 8px 14px;
+  background-repeat: repeat-y;
+  background-position: center;
+  width: 8px;
 }
-.cross::after {
-  top: 6px;
-  left: 0;
-  width: 13px;
-  height: 1px;
+.zigzag {
+  height: 10px;
+  background:
+    linear-gradient(-45deg, transparent 6px, #f7f5f0 0) 0 0 / 12px 10px repeat-x,
+    linear-gradient(45deg, transparent 6px, #f7f5f0 0) 0 0 / 12px 10px repeat-x;
 }
-.halo {
-  background: radial-gradient(ellipse at center, rgba(127, 209, 185, 0.16), transparent 62%);
+::selection {
+  background: var(--color-signal);
+  color: #fff;
 }
-.reveal {
-  opacity: 0;
-  transform: translateY(18px);
-  transition:
-    opacity 0.7s ease,
-    transform 0.7s cubic-bezier(0.2, 0.7, 0.2, 1);
-}
-.reveal.in {
-  opacity: 1;
-  transform: none;
-}
-@keyframes marquee {
+@keyframes roll {
   to {
     transform: translateX(-50%);
   }
 }
-.marquee {
-  animation: marquee 40s linear infinite;
-}
-@keyframes tileglow {
-  0%,
-  100% {
-    box-shadow: 0 0 0 1px rgba(127, 209, 185, 0);
-    border-color: var(--color-edge);
-  }
-  50% {
-    box-shadow: 0 0 0 1px rgba(127, 209, 185, 0.35), 0 0 28px -4px rgba(127, 209, 185, 0.45);
-    border-color: rgba(127, 209, 185, 0.6);
-  }
-}
-.tile-glow {
-  animation: tileglow 3.2s ease-in-out infinite;
-}
-@keyframes dash {
-  to {
-    stroke-dashoffset: -40;
-  }
-}
-.flow {
-  stroke-dasharray: 4 6;
-  animation: dash 1.6s linear infinite;
-}
-@keyframes progress {
-  from {
-    width: 0;
-  }
-  to {
-    width: 100%;
-  }
-}
-.progress {
-  animation: progress linear forwards;
+.roll {
+  animation: roll 60s linear infinite;
 }
 @media (prefers-reduced-motion: reduce) {
-  .marquee,
-  .tile-glow,
-  .flow,
-  .progress {
+  .roll {
     animation: none;
   }
-  .reveal {
-    opacity: 1;
-    transform: none;
-  }
+}
+/* 0% VLT means nothing comes through: an opaque base under the film's sheen. */
+.film-solid {
+  background-color: #0d1012;
 }

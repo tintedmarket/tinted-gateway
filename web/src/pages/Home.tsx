@@ -1,52 +1,15 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { api, CLAIMS, GATEWAY, type MarketRow } from "../api";
-import { Badge, CLAIM_HINT, CLAIM_LABEL } from "../ui";
-import { Scene } from "../Scene";
+import { api, CLAIMS, GATEWAY, type Anchor, type ClaimName, type ClaimState, type MarketRow, type Receipt } from "../api";
+import { CLAIM_LABEL } from "../ui";
 import { go } from "../App";
 
-/* ---------- small pieces ---------- */
-
-export function Reveal({ children, className = "", delay = 0 }: { children: ReactNode; className?: string; delay?: number }) {
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const io = new IntersectionObserver(([e]) => e.isIntersecting && (el.classList.add("in"), io.disconnect()), { threshold: 0.12 });
-    io.observe(el);
-    return () => io.disconnect();
-  }, []);
-  return (
-    <div ref={ref} className={`reveal ${className}`} style={{ transitionDelay: `${delay}ms` }}>
-      {children}
-    </div>
-  );
-}
-
-function Kicker({ children }: { children: ReactNode }) {
-  return <div className="font-mono text-[11px] tracking-[0.22em] text-proof uppercase">{children}</div>;
-}
-
-function Head({ kicker, title, sub, center }: { kicker: string; title: ReactNode; sub?: ReactNode; center?: boolean }) {
-  return (
-    <Reveal className={center ? "mx-auto max-w-3xl text-center" : "max-w-3xl"}>
-      <Kicker>{kicker}</Kicker>
-      <h2 className="mt-3 text-4xl leading-[1.05] font-semibold tracking-[-0.03em] sm:text-5xl">{title}</h2>
-      {sub && <p className="mt-4 text-lg text-ink-2">{sub}</p>}
-    </Reveal>
-  );
-}
-
-const ago = (iso: string | null) => {
+const ago = (iso: string | null | undefined) => {
   if (!iso) return "—";
   const s = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 1000));
-  return s < 60 ? `${s}s ago` : s < 3600 ? `${Math.round(s / 60)}m ago` : `${Math.round(s / 3600)}h ago`;
+  return s < 60 ? `${s}s ago` : s < 3600 ? `${Math.round(s / 60)} min ago` : `${Math.round(s / 3600)} h ago`;
 };
-const family = (r: MarketRow) => {
-  const n = (r.model.split("/").pop() ?? r.model).toLowerCase();
-  const m = n.match(/^(gpt-oss|deepseek|qwen|llama|gemma|kimi|glm|mistral|nomic|phi|hermes|gemini|minimax|nemotron)/);
-  return m ? m[1] : n.split(/[-.\d]/)[0];
-};
-const MONO: Record<string, string> = { "gpt-oss": "OSS", deepseek: "DS", qwen: "QW", llama: "LL", gemma: "GM", kimi: "KM", glm: "GLM", mistral: "MS", nomic: "NM", phi: "PHI", hermes: "HM", minimax: "MM", nemotron: "NT" };
+const usd = (n: number) => `$${n < 0.1 ? n.toFixed(3) : n.toFixed(2)}`;
+const short = (s: string, a = 6, b = 6) => (s.length > a + b + 1 ? `${s.slice(0, a)}…${s.slice(-b)}` : s);
 
 function useMarket() {
   const [rows, setRows] = useState<MarketRow[] | null>(null);
@@ -58,708 +21,500 @@ function useMarket() {
   }, []);
   return rows;
 }
-function useTick(ms: number) {
-  const [, set] = useState(0);
-  useEffect(() => {
-    const t = setInterval(() => set((x) => x + 1), ms);
-    return () => clearInterval(t);
-  }, [ms]);
+
+function Section({ n, title, children, aside }: { n: string; title: ReactNode; children: ReactNode; aside?: ReactNode }) {
+  return (
+    <section className="border-t border-ink py-16 sm:py-24">
+      <div className="mb-10 grid gap-4 sm:grid-cols-[120px_1fr_auto] sm:items-start">
+        <div className="font-mono text-[12px] text-ink-3">§ {n}</div>
+        <h2 className="condensed text-4xl leading-[0.92] uppercase sm:text-6xl">{title}</h2>
+        {aside}
+      </div>
+      {children}
+    </section>
+  );
 }
 
-/* ---------- hero ---------- */
+const PROMPTS = [
+  "Here are my lab results from Tuesday. What should I ask my doctor?",
+  "Help me write my resignation. My manager doesn't know yet.",
+  "Go through our Q3 numbers before the board sees them.",
+  "Can they really fire me for this? Here's the email.",
+  "Find the bug in our private repo before the audit.",
+  "What are my options if I can't pay this tax bill?",
+  "Summarize this term sheet. Anything unusual in the liquidation preference?",
+];
+
+/* ---------- the hero: a pane of film you drag across your own sentence ---------- */
 
 function Hero({ rows }: { rows: MarketRow[] | null }) {
-  const routable = rows?.filter((r) => r.routable).length;
-  return (
-    <section className="relative -mx-4 -mt-10 overflow-hidden px-4 pt-16 pb-10 sm:pt-24">
-      <div className="grid-bg pointer-events-none absolute inset-0" />
-      <div className="halo pointer-events-none absolute top-10 right-0 h-[520px] w-[720px]" />
-      <span className="cross top-6 left-2" />
-      <span className="cross top-6 right-2" />
-      <div className="pointer-events-none absolute top-6 left-8 hidden font-mono text-[11px] text-ink-3 lg:block">[ 200 OK ]</div>
-      <div className="pointer-events-none absolute top-6 right-8 hidden font-mono text-[11px] text-ink-3 lg:block">[ /V1 ]</div>
+  const [x, setX] = useState(58);
+  const [i, setI] = useState(0);
+  const box = useRef<HTMLDivElement>(null);
+  const drag = useRef(false);
+  const ok = rows?.filter((r) => r.routable) ?? [];
+  const last = rows?.map((r) => r.checkedAt).filter(Boolean).sort().at(-1);
+  const move = (clientX: number) => {
+    const r = box.current!.getBoundingClientRect();
+    setX(Math.min(94, Math.max(8, ((clientX - r.left) / r.width) * 100)));
+  };
+  const text = PROMPTS[i];
+  const sentence = (cls = "") => <p className={`condensed text-[clamp(46px,8.6vw,150px)] leading-[0.86] tracking-[-0.015em] ${cls}`}>{text}</p>;
 
-      <div className="relative grid items-center gap-10 lg:grid-cols-[1.1fr_1fr]">
-        <div>
-          <a href="#/verify" className="inline-flex items-center gap-2 rounded-full border border-edge bg-pane/80 py-1 pr-3 pl-1 font-mono text-[11px] text-ink-2 hover:border-proof/40">
-            <span className="rounded-full bg-proof/15 px-2 py-0.5 text-proof">TEE</span>
-            PRIVATE INFERENCE MARKET · SOLANA
-            <span className="text-proof">→</span>
-          </a>
-          <h1 className="mt-6 text-[44px] leading-[0.98] font-semibold tracking-[-0.045em] sm:text-6xl xl:text-[68px]">
-            Private AI.
-            <br />
-            <span className="whitespace-nowrap">
-              <span className="font-display font-normal tracking-[-0.02em] text-proof italic">Proven</span> on every call.
-            </span>
-          </h1>
-          <p className="mt-6 max-w-xl text-lg text-ink-2">
-            Every model runs inside a hardware enclave. Tinted checks the chip, the GPU, the code, the weights and the keys before your prompt leaves, so nobody running the
-            machine can read it. Not even us.
-          </p>
-          <div className="mt-8 flex flex-wrap gap-3">
-            <button onClick={() => go("chat")} className="rounded-lg bg-proof px-5 py-3 font-medium text-night shadow-[0_8px_30px_-8px_rgba(127,209,185,.6)] transition hover:brightness-110">
-              Start a private chat →
-            </button>
-            <button onClick={() => go("account")} className="rounded-lg border border-edge bg-pane px-5 py-3 font-medium text-ink transition hover:border-ink-3">
-              Get an API key
-            </button>
+  return (
+    <section className="-mx-4 border-b border-ink">
+      <div className="flex justify-between border-b border-ink px-4 py-2 font-mono text-[11px] text-ink-2 uppercase">
+        <span>Nº 01 — The private inference market</span>
+        <span className="hidden sm:block">Intel TDX · NVIDIA CC · Solana</span>
+      </div>
+      <div
+        ref={box}
+        className="relative h-[min(72vh,680px)] min-h-[480px] touch-none overflow-hidden select-none"
+        onPointerMove={(e) => drag.current && move(e.clientX)}
+        onPointerUp={() => (drag.current = false)}
+        onPointerLeave={() => (drag.current = false)}
+      >
+        {/* your side: the sentence, in the clear */}
+        <div className="absolute inset-x-4 top-10 sm:inset-x-10 sm:top-14">{sentence()}</div>
+        <div className="absolute bottom-4 left-4 font-mono text-[11px] uppercase sm:left-10">
+          <div className="text-ink-3">Your side</div>
+          <div>
+            <span className="sm:hidden">VLT 100%</span>
+            <span className="hidden sm:inline">Visible light transmission 100%</span>
           </div>
-          <div className="mt-8 max-w-xl rounded-2xl border border-edge bg-pane/80 p-4 backdrop-blur">
-            <div className="flex items-center justify-between font-mono text-[11px]">
-              <span className="flex items-center gap-2 text-ink-2">
-                <span className="size-1.5 animate-pulse rounded-full bg-proof" /> GATEWAY · INTEL TDX
-              </span>
-              <span className="rounded-full border border-proof/40 px-2 py-0.5 text-proof">LIVE · ATTESTED</span>
+          <button onClick={() => setI((i + 1) % PROMPTS.length)} className="mt-3 border-b border-ink text-ink hover:text-signal">
+            Another sentence ↻
+          </button>
+        </div>
+
+        {/* their side: smoked film; all that comes back is a faint reflection */}
+        <div className="film film-solid absolute inset-y-0 right-0" style={{ left: `${x}%` }}>
+          <div className="absolute inset-y-0 right-0 overflow-hidden" style={{ left: 0 }}>
+            <div className="absolute top-10 opacity-[0.035] blur-[1.5px] sm:top-14" style={{ left: `calc(-${x}vw + 1rem)`, width: "calc(100vw - 2rem)", transform: "scaleX(-1)" }}>
+              {sentence("text-white")}
             </div>
-            <p className="mt-3 text-sm text-ink-2">
-              {routable !== undefined ? (
-                <>
-                  <b className="text-ink">{routable} private models</b> passing every proof right now. TLS ends inside the enclave; receipts are anchored on Solana.
-                </>
-              ) : (
-                "Reading the market…"
-              )}{" "}
-              <a href="#/verify" className="text-proof underline-offset-2 hover:underline">
-                Verify it yourself
-              </a>
-            </p>
+          </div>
+          <div className="absolute bottom-4 left-5 font-mono text-[11px] uppercase">
+            <div className="text-white/45">The operator's side</div>
+            <div className="text-white/80">
+              <span className="sm:hidden">VLT 0%</span>
+              <span className="hidden sm:inline">Visible light transmission 0%</span>
+            </div>
+          </div>
+          {/* the maker's sticker, with live numbers */}
+          <div className="absolute top-[46%] right-3 w-[min(270px,80%)] rotate-[-2deg] bg-night text-ink shadow-[0_6px_18px_rgba(0,0,0,.45)] sm:right-10">
+            <div className="flex items-center justify-between bg-signal px-3 py-1.5 text-white">
+              <span className="condensed text-lg uppercase">Tinted</span>
+              <span className="hidden font-mono text-[10px] sm:inline">FILM T-0</span>
+            </div>
+            <div className="space-y-1 px-3 py-2.5 font-mono text-[11px]">
+              <div className="flex">
+                <span>VLT</span>
+                <span className="leader" />
+                <span>0%</span>
+              </div>
+              <div className="hidden sm:flex">
+                <span>Models proved</span>
+                <span className="leader" />
+                <span>{rows ? ok.length : "…"}</span>
+              </div>
+              <div className="hidden sm:flex">
+                <span>Last inspection</span>
+                <span className="leader" />
+                <span>{ago(last)}</span>
+              </div>
+            </div>
           </div>
         </div>
-        <Scene className="w-full" />
+
+        {/* the edge of the film: drag it */}
+        <div
+          className="absolute inset-y-0 z-10 flex w-6 -translate-x-1/2 cursor-ew-resize items-center justify-center"
+          style={{ left: `${x}%` }}
+          onPointerDown={(e) => {
+            drag.current = true;
+            (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+          }}
+          onPointerMove={(e) => drag.current && move(e.clientX)}
+          onPointerUp={() => (drag.current = false)}
+        >
+          <div className="h-full w-[3px] bg-ink" />
+          <div className="absolute top-1/2 flex h-16 w-5 -translate-y-1/2 flex-col items-center justify-center gap-1 border border-ink bg-night">
+            {[0, 1, 2].map((k) => (
+              <span key={k} className="h-px w-2.5 bg-ink" />
+            ))}
+          </div>
+          <div className="absolute top-3 left-5 font-mono text-[10px] whitespace-nowrap text-ink-3 uppercase">⟷ drag the film</div>
+        </div>
       </div>
     </section>
   );
 }
 
-function Ticker({ rows }: { rows: MarketRow[] | null }) {
-  useTick(10_000);
-  const items = (rows ?? []).filter((r) => r.checkedAt && r.routable);
-  if (!items.length) return null;
-  const line = [...items, ...items];
+function Intro() {
   return (
-    <div className="relative -mx-4 overflow-hidden border-y border-edge bg-pane/40 py-3 [mask-image:linear-gradient(90deg,transparent,#000_8%,#000_92%,transparent)]">
-      <div className="marquee flex w-max gap-10 font-mono text-[12px] whitespace-nowrap">
-        {line.map((r, i) => {
-          const n = CLAIMS.filter((c) => r.claims?.[c] === "verified").length;
-          return (
-            <span key={i} className="flex items-center gap-2 text-ink-3">
-              <span className="text-proof">✓</span>
-              <span className="text-ink-2">{r.name}</span>
-              <span>{n}/5 proved</span>
-              <span>· {ago(r.checkedAt)}</span>
-            </span>
-          );
-        })}
+    <section className="grid gap-8 py-12 lg:grid-cols-[1.1fr_1fr_auto] lg:items-end">
+      <h1 className="condensed text-5xl leading-[0.88] uppercase sm:text-7xl">
+        Private AI
+        <br />
+        you can <span className="text-signal">check.</span>
+      </h1>
+      <p className="max-w-md text-lg leading-snug text-ink-2">
+        Every model on Tinted runs inside a hardware enclave. Before your words leave, we inspect the chip, the GPU, the code, the weights and the keys. You read the answer.
+        Nobody running the machine can. Not even us.
+      </p>
+      <div className="flex flex-col gap-2 sm:flex-row lg:flex-col">
+        <button onClick={() => go("chat")} className="bg-ink px-6 py-4 text-left font-semibold tracking-wide text-night uppercase hover:bg-signal">
+          Open a private chat →
+        </button>
+        <button onClick={() => go("account")} className="border border-ink px-6 py-4 text-left font-semibold tracking-wide uppercase hover:bg-ink hover:text-night">
+          Get an API key
+        </button>
       </div>
-    </div>
+    </section>
   );
 }
 
-/* ---------- demo: one prompt, both sides of the glass ---------- */
+/* ---------- a strip of film with sprocket holes, carrying the live market ---------- */
 
-const PROMPTS = [
-  "Summarize this term sheet and flag anything unusual in the liquidation preference.",
-  "Here are my lab results from Tuesday. What should I ask my doctor?",
-  "Draft a reply to my landlord about the deposit. Keep it firm.",
-  "Go through our Q3 numbers before the board sees them. What looks weak?",
-  "Help me write a resignation letter. My manager doesn't know yet.",
-  "Find the bug in this private repo before the audit starts.",
-  "Summarize these customer support tickets. They include names and emails.",
-  "What are my options if I can't pay this tax bill on time?",
-  "Translate this message to my family. It's personal.",
-  "Review this contract clause. Can they really terminate without notice?",
-];
-const CHIPS: [string, number][] = [
-  ["Medical", 1],
-  ["Legal", 9],
-  ["Finance", 3],
-  ["Code", 5],
-  ["Personal", 4],
-];
-
-function Demo() {
-  const [i, setI] = useState(0);
-  const [n, setN] = useState(0);
-  const text = PROMPTS[i];
-  useEffect(() => {
-    const t = setTimeout(
-      () => {
-        if (n < text.length) setN(n + 1);
-        else {
-          setN(0);
-          setI((i + 1) % PROMPTS.length);
-        }
-      },
-      n < text.length ? 26 : 2800,
-    );
-    return () => clearTimeout(t);
-  }, [n, i, text.length]);
-  const typed = text.slice(0, n);
-  const lit = n >= text.length ? 5 : Math.floor((n / text.length) * 5);
-  const cipher = typed.replace(/[^ ]/g, "▮");
-
+function Filmstrip({ rows }: { rows: MarketRow[] | null }) {
+  const ok = (rows ?? []).filter((r) => r.routable);
+  if (!ok.length) return null;
+  const items = [...ok, ...ok, ...ok, ...ok];
+  const holes = <div className="h-2.5 w-full" style={{ backgroundImage: "linear-gradient(90deg, #ebe8e1 0 12px, transparent 12px 26px)", backgroundSize: "26px 100%" }} />;
   return (
-    <div className="overflow-hidden rounded-2xl border border-edge bg-pane">
-      <div className="flex flex-wrap items-center gap-2 border-b border-edge px-4 py-3">
-        <span className="mr-1 font-mono text-[11px] text-ink-3">TRY</span>
-        {CHIPS.map(([c, idx]) => (
-          <button
-            key={c}
-            onClick={() => {
-              setI(idx);
-              setN(0);
-            }}
-            className={`rounded-full border px-3 py-1 text-xs transition ${i === idx ? "border-proof/50 bg-proof/10 text-proof" : "border-edge text-ink-2 hover:text-ink"}`}
-          >
-            {c}
-          </button>
+    <div className="-mx-4 overflow-hidden bg-glass py-2 text-night">
+      {holes}
+      <div className="roll flex w-max gap-12 py-3 font-mono text-[13px] whitespace-nowrap uppercase">
+        {items.map((r, k) => (
+          <span key={k}>
+            {r.name} <span className="text-white/40">—</span> {CLAIMS.filter((c) => r.claims?.[c] === "verified").length}/5 proved <span className="text-white/40">—</span> {usd(r.outputPerM)}/M
+          </span>
         ))}
       </div>
-      <div className="grid md:grid-cols-[1fr_auto_1fr]">
-        <div className="p-6 sm:p-8">
-          <div className="font-mono text-[11px] text-ink-3">YOUR SIDE</div>
-          <p className="mt-3 min-h-28 text-xl leading-relaxed sm:text-2xl">
-            {typed}
-            <span className="ml-0.5 inline-block h-6 w-[2px] translate-y-1 animate-pulse bg-proof" />
-          </p>
-          <div className="mt-5 space-y-1.5 font-mono text-[12px]">
-            {CLAIMS.map((c, k) => (
-              <div key={c} className={`flex items-center gap-2 transition ${k < lit ? "text-proof" : "text-ink-3/60"}`}>
-                <span>{k < lit ? "✓" : "○"}</span>
-                <span className="w-24">{CLAIM_LABEL[c]}</span>
-                <span className="text-ink-3">{k < lit ? "proved" : "checking"}</span>
-              </div>
-            ))}
+      {holes}
+    </div>
+  );
+}
+
+/* ---------- swatch book: how much of your sentence each party can see ---------- */
+
+const PARTIES: [string, string, number, number, string?][] = [
+  ["You", "the person typing", 100, 100],
+  ["The model provider", "their staff, their logs", 88, 0],
+  ["The cloud or GPU host", "anyone who can read memory", 72, 0],
+  ["The router in between", "a normal API gateway", 100, 0],
+  ["A breach, years later", "whatever was logged", 90, 0],
+  ["Your payment trail", "who paid for this call", 100, 0, "Card ending 4417 · alex.m@…"],
+];
+
+function Swatch({ vlt, text, n }: { vlt: number; text: string; n: string }) {
+  const dark = vlt < 50;
+  return (
+    <div className="relative h-20 overflow-hidden border border-ink bg-[#f4f2ec]">
+      <div className="absolute inset-x-3 bottom-2 truncate font-mono text-[13px] text-ink">{text}</div>
+      <div className={`film absolute inset-0 ${vlt === 0 ? "film-solid" : ""}`} style={{ opacity: 1 - vlt / 100 }} />
+      <div className={`absolute top-1.5 left-3 font-mono text-[10px] ${dark ? "text-white/60" : "text-ink-3"}`}>{n}</div>
+      <div className={`absolute top-1.5 right-3 font-mono text-[11px] font-semibold ${dark ? "text-white" : "text-ink"}`}>VLT {vlt}%</div>
+    </div>
+  );
+}
+
+function SwatchBook() {
+  const line = "my lab results from Tuesday, what should I ask";
+  return (
+    <div>
+      <div className="mb-3 hidden grid-cols-[1fr_1.2fr_1.2fr] gap-4 font-mono text-[11px] text-ink-3 uppercase md:grid">
+        <span>Who is looking</span>
+        <span>An ordinary AI API</span>
+        <span>Through Tinted</span>
+      </div>
+      <div className="space-y-3">
+        {PARTIES.map(([who, note, plain, tinted, alt], k) => (
+          <div key={who} className="grid gap-3 md:grid-cols-[1fr_1.2fr_1.2fr] md:items-center md:gap-4">
+            <div>
+              <div className="condensed text-2xl uppercase">{who}</div>
+              <div className="text-sm text-ink-3">{note}</div>
+            </div>
+            <Swatch vlt={plain} text={alt ?? line} n={`Nº A-${k + 1}`} />
+            <Swatch vlt={tinted} text={alt && tinted < 50 ? "note #4f1… redeemed by zero-knowledge proof" : line} n={`Nº T-${k + 1}`} />
           </div>
-        </div>
-        <div className="relative hidden w-12 md:block">
-          <div className="absolute inset-0 bg-gradient-to-r from-proof/25 via-proof/5 to-transparent" />
-          <div className="absolute inset-y-0 left-1/2 w-px bg-proof/60" />
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 -rotate-90 font-mono text-[10px] tracking-[0.3em] whitespace-nowrap text-proof">ONE-WAY GLASS</div>
-        </div>
-        <div className="border-t border-edge bg-[#050708] p-6 sm:p-8 md:border-t-0">
-          <div className="font-mono text-[11px] text-ink-3">WHAT THE OPERATOR SEES</div>
-          <p aria-hidden className="mt-3 min-h-28 font-mono text-lg leading-relaxed break-all text-edge sm:text-xl">
-            {cipher}
-          </p>
-          <div className="mt-5 font-mono text-[12px] text-ink-3">
-            <div>tls → enclave · end to end</div>
-            <div>memory · encrypted by the CPU and GPU</div>
-            <div>logs · {lit === 5 ? <span className="text-proof">nothing to log</span> : "…"}</div>
-          </div>
-        </div>
+        ))}
       </div>
     </div>
   );
 }
 
-/* ---------- live numbers ---------- */
+/* ---------- inspection sheet: the five proofs for one real model, stamped ---------- */
 
-function Stats({ rows }: { rows: MarketRow[] | null }) {
-  useTick(1000);
-  const r = rows ?? [];
-  const ok = r.filter((x) => x.routable);
-  const last = r.map((x) => x.checkedAt).filter(Boolean).sort().at(-1) ?? null;
-  const next = last ? Math.max(0, 600 - Math.round((Date.now() - Date.parse(last)) / 1000)) : null;
-  const cheapest = [...ok].sort((a, b) => a.outputPerM - b.outputPerM).slice(0, 6);
-  const maxP = Math.max(...cheapest.map((x) => x.outputPerM), 0.01);
-  const proofsChecked = r.filter((x) => x.claims).length * 5;
+const STAMP: Record<ClaimState, [string, string]> = { verified: ["Pass", "text-proof"], provider: ["Claimed", "text-claim"], failed: ["Fail", "text-fail"], unknown: ["Pending", "text-ink-3"] };
+
+function Inspection({ rows }: { rows: MarketRow[] | null }) {
+  const ok = useMemo(() => (rows ?? []).filter((r) => r.routable), [rows]);
+  const [id, setId] = useState("");
+  const [v, setV] = useState<Awaited<ReturnType<typeof api.verification>> | null>(null);
+  useEffect(() => {
+    if (!id && ok.length) setId(ok.find((r) => r.id.includes("gemma"))?.id ?? ok[0].id);
+  }, [ok, id]);
+  useEffect(() => {
+    if (!id) return;
+    setV(null);
+    api.verification(id).then(setV, () => undefined);
+  }, [id]);
+  const row = ok.find((r) => r.id === id);
 
   return (
-    <div className="grid gap-4 lg:grid-cols-3">
-      <Reveal className="rounded-2xl border border-edge bg-pane p-6">
-        <div className="font-mono text-[11px] tracking-[0.18em] text-ink-3">ON THE MARKET · LIVE</div>
-        <div className="mt-4 flex items-baseline gap-3">
-          <span className="text-6xl font-semibold tracking-[-0.04em]">{rows ? ok.length : "…"}</span>
-          <span className="text-ink-3">private models</span>
-        </div>
-        <div className="mt-6 flex h-12 items-end gap-[3px]">
-          {ok.map((x) => {
-            const n = CLAIMS.filter((c) => x.claims?.[c] === "verified").length;
-            return <div key={x.id} title={`${x.name}: ${n}/5 proved`} className="flex-1 rounded-sm bg-proof" style={{ height: `${n * 20}%`, opacity: 0.45 + n * 0.11 }} />;
-          })}
-        </div>
-        <div className="mt-3 font-mono text-[10.5px] text-ink-3">{proofsChecked} proofs checked in the last cycle · bar height = proofs passed</div>
-      </Reveal>
-      <Reveal className="rounded-2xl border border-edge bg-pane p-6" delay={80}>
-        <div className="font-mono text-[11px] tracking-[0.18em] text-ink-3">CHEAPEST PRIVATE MODELS · $/1M OUT</div>
-        <div className="mt-5 space-y-2.5">
-          {cheapest.map((x) => (
-            <div key={x.id} className="grid grid-cols-[1fr_auto] items-center gap-3 text-sm">
-              <div className="min-w-0">
-                <div className="truncate text-ink-2">{x.name}</div>
-                <div className="mt-1 h-1.5 rounded-full bg-night">
-                  <div className="h-full rounded-full bg-gradient-to-r from-proof/40 to-proof" style={{ width: `${Math.max(6, (x.outputPerM / maxP) * 100)}%` }} />
-                </div>
-              </div>
-              <span className="font-mono text-[12px]">${x.outputPerM.toFixed(2)}</span>
-            </div>
+    <div className="border border-ink bg-[#f4f2ec]">
+      <div className="grid gap-3 border-b border-ink p-4 font-mono text-[12px] sm:grid-cols-[auto_1fr_auto] sm:items-center">
+        <span className="text-ink-3 uppercase">Specimen</span>
+        <select value={id} onChange={(e) => setId(e.target.value)} className="border-b border-ink bg-transparent py-1 font-mono text-[13px] outline-none">
+          {ok.map((r) => (
+            <option key={r.id} value={r.id}>
+              {r.name} — {r.id}
+            </option>
           ))}
-          {!rows && <div className="text-sm text-ink-3">Loading…</div>}
-        </div>
-      </Reveal>
-      <Reveal className="rounded-2xl border border-edge bg-pane p-6" delay={160}>
-        <div className="font-mono text-[11px] tracking-[0.18em] text-ink-3">NEXT RE-VERIFICATION</div>
-        <div className="mt-4 flex items-center gap-6">
-          <svg viewBox="0 0 100 100" className="size-28 -rotate-90">
-            <circle cx="50" cy="50" r="44" fill="none" stroke="#151b1f" strokeWidth="6" />
-            <circle cx="50" cy="50" r="44" fill="none" stroke="#7fd1b9" strokeWidth="6" strokeLinecap="round" strokeDasharray={276.5} strokeDashoffset={next === null ? 276.5 : 276.5 * (next / 600)} style={{ transition: "stroke-dashoffset 1s linear" }} />
-          </svg>
-          <div>
-            <div className="font-mono text-4xl">{next === null ? "…" : next === 0 ? <span className="animate-pulse text-proof">now</span> : `${Math.floor(next / 60)}:${String(next % 60).padStart(2, "0")}`}</div>
-            <div className="mt-1 text-sm text-ink-3">last check {ago(last)}</div>
+        </select>
+        <span className="text-ink-3 uppercase">Inspected {ago(v?.checkedAt ?? row?.checkedAt)}</span>
+      </div>
+      {CLAIMS.map((c: ClaimName, k) => {
+        const st = v?.claims[c].state ?? "unknown";
+        return (
+          <div key={c} className="grid grid-cols-[32px_1fr_auto] items-center gap-x-4 gap-y-2 border-b border-edge px-4 py-5 last:border-b-0 md:grid-cols-[48px_200px_1fr_130px]">
+            <span className="font-mono text-[12px] text-ink-3">{String(k + 1).padStart(2, "0")}</span>
+            <span className="condensed text-2xl uppercase">{CLAIM_LABEL[c]}</span>
+            <span className="order-last col-span-3 font-mono text-[12px] leading-relaxed break-words text-ink-2 md:order-none md:col-span-1">{v ? v.claims[c].detail : "reading the evidence…"}</span>
+            <span className={`justify-self-end text-xl ${STAMP[st][1]}`}>
+              <span className="stamp">{STAMP[st][0]}</span>
+            </span>
           </div>
-        </div>
-        <p className="mt-5 text-sm text-ink-2">Every listing is re-proved every 10 minutes. A failed proof takes it off the market until it passes again.</p>
-      </Reveal>
+        );
+      })}
+      <div className="border-t border-ink px-4 py-3 font-mono text-[11px] text-ink-3 uppercase">
+        Checked against Intel, AMD and NVIDIA signing roots · re-inspected every 10 minutes · a failed stamp takes the model off the market
+      </div>
     </div>
   );
 }
 
-/* ---------- model wall ---------- */
+/* ---------- price list ---------- */
 
-function Wall({ rows }: { rows: MarketRow[] | null }) {
-  const fams = useMemo(() => {
-    const m = new Map<string, MarketRow[]>();
-    for (const r of rows ?? []) if (r.routable) m.set(family(r), [...(m.get(family(r)) ?? []), r]);
-    return [...m.entries()];
-  }, [rows]);
-  const [hot, setHot] = useState(0);
-  useEffect(() => {
-    const t = setInterval(() => setHot((h) => h + 1), 1800);
-    return () => clearInterval(t);
-  }, []);
-  // Each family once, then empty tiles fading out: room for the providers that pass next.
-  const tiles: ([string, MarketRow[]] | null)[] = [...fams, ...Array.from({ length: Math.max(0, 18 - fams.length) }, () => null)];
-  const active = fams.length ? hot % fams.length : -1;
-  const cur = active >= 0 ? fams[active] : null;
-
+function PriceList({ rows }: { rows: MarketRow[] | null }) {
+  const ok = (rows ?? []).filter((r) => r.routable).sort((a, b) => a.outputPerM - b.outputPerM);
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-edge bg-pane/60 p-6 sm:p-10">
-      <div className="halo pointer-events-none absolute -top-20 -left-20 size-[480px]" />
-      <div className="relative grid grid-cols-4 gap-3 sm:grid-cols-6 lg:w-[62%]">
-        {tiles.map((t, k) =>
-          t ? (
-            <div key={k} className={`flex aspect-square flex-col items-center justify-center rounded-xl border bg-night/70 transition duration-500 ${k === active ? "border-proof/70 shadow-[0_0_30px_-6px_rgba(127,209,185,.6)]" : "border-edge"}`}>
-              <span className={`font-mono text-lg font-medium ${k === active ? "text-proof" : "text-ink-2"}`}>{MONO[t[0]] ?? t[0].slice(0, 2).toUpperCase()}</span>
-              <span className="mt-1 hidden font-mono text-[9px] text-ink-3 sm:block">
-                {t[1].length} model{t[1].length > 1 ? "s" : ""}
-              </span>
+    <div className="grid gap-x-16 md:grid-cols-2">
+      {ok.map((r) => (
+        <button key={r.id} onClick={() => go("chat", r.id)} className="group flex items-baseline gap-3 border-b border-edge py-3 text-left">
+          <span className="text-lg font-semibold group-hover:text-signal">{r.name}</span>
+          <span className="hidden font-mono text-[11px] text-ink-3 sm:inline">{r.provider}</span>
+          <span className="leader" />
+          <span className="font-mono text-[13px] text-ink-3">{usd(r.inputPerM)} in</span>
+          <span className="font-mono text-[15px] font-semibold">{usd(r.outputPerM)}</span>
+        </button>
+      ))}
+      {!rows && <div className="font-mono text-sm text-ink-3">Reading the market…</div>}
+    </div>
+  );
+}
+
+/* ---------- a real receipt, printed ---------- */
+
+const SAMPLE_RECEIPT = "rcpt_38ff9ae75e6c9cff09f34ddf";
+
+function Barcode({ hex }: { hex: string }) {
+  const bars = hex.slice(0, 48).split("").map((h) => parseInt(h, 16));
+  let x = 0;
+  return (
+    <svg viewBox={`0 0 ${bars.reduce((a, b) => a + (b % 3) + 2, 0)} 30`} className="h-10 w-full" preserveAspectRatio="none">
+      {bars.map((b, k) => {
+        const w = (b % 3) + 1;
+        const el = k % 2 === 0 ? <rect key={k} x={x} y={0} width={w} height={30} fill="#121211" /> : null;
+        x += w + 1;
+        return el;
+      })}
+    </svg>
+  );
+}
+
+function ReceiptPaper() {
+  const [r, setR] = useState<{ receipt: Receipt; signature: string; anchor: Anchor | null } | null>(null);
+  useEffect(() => {
+    api.receipt(SAMPLE_RECEIPT).then(setR, () => undefined);
+  }, []);
+  const line = (a: ReactNode, b: ReactNode) => (
+    <div className="flex gap-2">
+      <span>{a}</span>
+      <span className="leader" />
+      <span className="text-right">{b}</span>
+    </div>
+  );
+  return (
+    <div className="mx-auto w-full max-w-[360px] rotate-[1.5deg] drop-shadow-[0_14px_22px_rgba(0,0,0,.18)]">
+      <div className="zigzag rotate-180" />
+      <div className="bg-[#f7f5f0] px-6 py-5 font-mono text-[12px] leading-relaxed text-ink">
+        <div className="text-center">
+          <div className="condensed text-3xl uppercase">Tinted</div>
+          <div className="text-[11px] text-ink-3">private inference receipt</div>
+        </div>
+        <div className="my-3 border-t border-dashed border-ink-3" />
+        {r ? (
+          <div className="space-y-0.5">
+            {line("ID", short(r.receipt.id, 10, 4))}
+            {line("Date", new Date(r.receipt.at).toISOString().slice(0, 16).replace("T", " "))}
+            {line("Model", r.receipt.listing.split("/")[1])}
+            {line("Tokens", `${r.receipt.usage.input} in / ${r.receipt.usage.output} out`)}
+            {line("Charged", `$${(r.receipt.costMicros / 1e6).toFixed(6)}`)}
+            <div className="my-3 border-t border-dashed border-ink-3" />
+            {Object.entries(r.receipt.verified).map(([k, s]) => line(k.toUpperCase(), s === "verified" ? "PASS" : s.toUpperCase()))}
+            <div className="my-3 border-t border-dashed border-ink-3" />
+            {line("Request", short(r.receipt.requestHash, 6, 4))}
+            {line("Response", short(r.receipt.responseHash, 6, 4))}
+            <div className="pt-1 text-[10.5px] text-ink-3">hashes only · your words are not on this paper</div>
+            <div className="my-3 border-t border-dashed border-ink-3" />
+            {line("Signed", "ed25519, enclave key")}
+            {r.anchor ? (
+              <>
+                {line("Anchored", "Solana")}
+                {line("Batch", `leaf ${r.anchor.index + 1} of ${r.anchor.count}`)}
+                <a href={`https://solscan.io/tx/${r.anchor.tx}`} target="_blank" rel="noreferrer" className="block break-all text-signal underline">
+                  tx {short(r.anchor.tx, 10, 8)}
+                </a>
+              </>
+            ) : (
+              line("Anchored", "next hour")
+            )}
+            <div className="mt-4">
+              <Barcode hex={r.signature} />
             </div>
-          ) : (
-            <div key={k} className="aspect-square rounded-xl border border-dashed border-edge/70" style={{ opacity: Math.max(0.12, 0.7 - (k - fams.length) * 0.07) }} />
-          ),
+          </div>
+        ) : (
+          <div className="py-10 text-center text-ink-3">printing…</div>
         )}
       </div>
-      <div className="relative mt-6 rounded-xl border border-edge bg-night/90 p-4 shadow-2xl backdrop-blur lg:absolute lg:top-1/2 lg:right-8 lg:mt-0 lg:w-[38%] lg:-translate-y-1/2">
-        <div className="flex items-center justify-between gap-3 text-sm">
-          <span className="truncate font-medium">{cur ? cur[1][0].name : "Your client"}</span>
-          <span className="flex shrink-0 items-center gap-1.5 rounded-full border border-proof/30 px-2 py-0.5 text-[11px] text-proof">
-            <span className="size-1.5 rounded-full bg-proof" /> Connected
-          </span>
-        </div>
-        <pre className="mt-3 overflow-x-auto font-mono text-[11.5px] leading-relaxed text-ink-2">
-          <span className="text-ink-3">export</span> OPENAI_BASE_URL={GATEWAY}/v1{"\n"}
-          <span className="text-ink-3">model</span> = "{cur ? cur[1][0].id : "tinfoil/gemma4-31b"}"
-        </pre>
-      </div>
+      <div className="zigzag" />
     </div>
   );
 }
 
-/* ---------- code window ---------- */
+/* ---------- the anonymous note, as a ticket stub ---------- */
 
-const SNIPPETS: Record<string, { file: string; code: string }> = {
-  Python: {
-    file: "quickstart.py",
-    code: `from openai import OpenAI
-
-tinted = OpenAI(base_url="${GATEWAY}/v1", api_key=TINTED_KEY)
-r = tinted.chat.completions.with_raw_response.create(
-    model="tinfoil/gemma4-31b",
-    messages=[{"role": "user", "content": "hello"}],
-)
-print(r.headers["x-tinted-verified"])  # hardware=verified,gpu=verified,…
-print(r.headers["x-tinted-receipt"])   # rcpt_… check it on Solana`,
-  },
-  TypeScript: {
-    file: "quickstart.ts",
-    code: `import OpenAI from "openai";
-
-const tinted = new OpenAI({ baseURL: "${GATEWAY}/v1", apiKey: TINTED_KEY });
-const { data, response } = await tinted.chat.completions
-  .create({ model: "tinfoil/gemma4-31b", messages: [{ role: "user", content: "hello" }] })
-  .withResponse();
-console.log(response.headers.get("x-tinted-verified"));`,
-  },
-  cURL: {
-    file: "terminal",
-    code: `curl ${GATEWAY}/v1/chat/completions \\
-  -H "authorization: Bearer $TINTED_KEY" \\
-  -H "content-type: application/json" \\
-  -d '{"model":"tinfoil/gemma4-31b",
-       "messages":[{"role":"user","content":"hello"}]}' -i`,
-  },
-  ".env": {
-    file: ".env",
-    code: `# any OpenAI-compatible client
-OPENAI_BASE_URL=${GATEWAY}/v1
-OPENAI_API_KEY=tnt_••••••••`,
-  },
-};
-
-function CopyBtn({ text, label = "Copy" }: { text: string; label?: string }) {
-  const [ok, set] = useState(false);
+function Ticket() {
   return (
-    <button
-      onClick={() =>
-        void navigator.clipboard.writeText(text).then(() => {
-          set(true);
-          setTimeout(() => set(false), 1400);
-        })
-      }
-      className="font-mono text-[11px] text-ink-3 hover:text-proof"
-    >
-      {ok ? "copied ✓" : label}
-    </button>
-  );
-}
-
-function CodeWindow() {
-  const [tab, setTab] = useState("Python");
-  const s = SNIPPETS[tab];
-  return (
-    <div className="overflow-hidden rounded-2xl border border-edge bg-[#0b0e10] shadow-2xl">
-      <div className="flex gap-1 overflow-x-auto border-b border-edge p-2">
-        {Object.keys(SNIPPETS).map((k) => (
-          <button key={k} onClick={() => setTab(k)} className={`rounded-lg px-3 py-1.5 text-xs whitespace-nowrap ${k === tab ? "bg-pane-2 text-ink" : "text-ink-3 hover:text-ink"}`}>
-            {k}
-          </button>
-        ))}
+    <div className="flex max-w-3xl border border-ink bg-[#f4f2ec]">
+      <div className="flex-1 p-6 sm:p-8">
+        <div className="flex items-baseline justify-between font-mono text-[11px] text-ink-3 uppercase">
+          <span>Anonymous credit note</span>
+          <span>Groth16 · BN254</span>
+        </div>
+        <div className="condensed mt-4 text-[clamp(64px,11vw,128px)] leading-[0.8]">$50</div>
+        <div className="mt-4 max-w-sm text-ink-2">Pays for any model on the market. Redeemed with a zero-knowledge proof that it was bought, never which purchase it was.</div>
+        <div className="mt-5 font-mono text-[11px] text-ink-3 uppercase">Admit one private key · non-linkable · spend once</div>
       </div>
-      <div className="flex items-center gap-2 border-b border-edge px-4 py-2.5">
-        <span className="size-2.5 rounded-full bg-[#e5706a]" />
-        <span className="size-2.5 rounded-full bg-[#d6b56b]" />
-        <span className="size-2.5 rounded-full bg-proof" />
-        <span className="ml-3 font-mono text-[11px] text-ink-3">{s.file}</span>
-        <span className="ml-auto">
-          <CopyBtn text={s.code} />
-        </span>
+      <div className="perf bg-transparent" />
+      <div className="w-24 shrink-0 border-l border-dashed border-ink p-3 sm:w-36 sm:p-4">
+        <div className="font-mono text-[10px] text-ink-3 uppercase">Keep this half</div>
+        <div className="mt-3 font-mono text-[10px] leading-snug break-all text-ink-2">tinted-note-v1-50-0c98203866…</div>
+        <div className="condensed mt-4 text-3xl text-signal [writing-mode:vertical-rl]">STUB</div>
       </div>
-      <pre className="overflow-x-auto py-4 font-mono text-[12.5px] leading-[1.75]">
-        {s.code.split("\n").map((l, k) => (
-          <div key={k} className="flex">
-            <span className="w-10 shrink-0 pr-4 text-right text-ink-3/50 select-none">{k + 1}</span>
-            <span className={l.trim().startsWith("#") ? "text-ink-3" : "text-ink-2"}>{l || " "}</span>
-          </div>
-        ))}
-      </pre>
-    </div>
-  );
-}
-
-/* ---------- how a call works ---------- */
-
-const STEPS: [string, string][] = [
-  ["Seal", "Your browser opens TLS straight into Tinted's enclave. The certificate key was born in there; the network in between carries ciphertext."],
-  ["Prove", "Before anything moves, Tinted checks each provider's CPU, GPU, code, weights and key proofs against Intel, AMD and NVIDIA's own roots."],
-  ["Route", "Only listings that passed every proof in the last 10 minutes can receive your request. Anything else is held back."],
-  ["Answer", "The model runs inside its own enclave. The answer comes back the same way: sealed end to end, never logged."],
-  ["Receipt", "You get a receipt signed by an enclave-born key. Every hour, a Merkle root of all receipts is posted to Solana."],
-];
-
-function Steps() {
-  const [step, setStep] = useState(0);
-  const [paused, setPaused] = useState(false);
-  useEffect(() => {
-    if (paused) return;
-    const t = setTimeout(() => setStep((s) => (s + 1) % STEPS.length), 5200);
-    return () => clearTimeout(t);
-  }, [step, paused]);
-  return (
-    <div className="grid items-center gap-10 lg:grid-cols-[0.9fr_1.1fr]">
-      <div onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)}>
-        {STEPS.map(([t, d], k) => (
-          <button key={t} onClick={() => setStep(k)} className="relative block w-full border-t border-edge py-4 text-left last:border-b">
-            <div className="flex items-baseline gap-5">
-              <span className={`font-mono text-[11px] ${k === step ? "text-proof" : "text-ink-3"}`}>{String(k + 1).padStart(2, "0")}</span>
-              <span className={`text-2xl font-semibold tracking-[-0.02em] transition sm:text-3xl ${k === step ? "text-ink" : "text-ink-3/70 hover:text-ink-2"}`}>{t}</span>
-            </div>
-            {k === step && <p className="mt-2 pl-10 text-ink-2">{d}</p>}
-            {k === step && <span key={step + String(paused)} className={`absolute -bottom-px left-0 h-px bg-proof ${paused ? "w-full" : "progress"}`} style={{ animationDuration: "5.2s" }} />}
-          </button>
-        ))}
-      </div>
-      <div className="relative">
-        <div className="halo pointer-events-none absolute inset-0" />
-        <Scene focus={step} className="relative w-full" />
-      </div>
-    </div>
-  );
-}
-
-/* ---------- who can read it ---------- */
-
-const WHO: [string, string, string][] = [
-  ["The model provider's staff", "Read prompts in their logs", "Ciphertext only: the model runs sealed in an enclave"],
-  ["The cloud or GPU host", "Can dump memory at any time", "Memory is encrypted by the CPU and GPU"],
-  ["Tinted, the operator", "A normal router sees all it relays", "Runs in its own attested enclave, TLS ends inside it"],
-  ["Whoever breaches the logs", "Gets every conversation", "Gets hashes. Receipts never contain text"],
-  ["Your payment trail", "Card, email, name on file", "ZK credits unlink the wallet from the key"],
-];
-
-function Compare() {
-  return (
-    <div className="grid gap-4 md:grid-cols-2">
-      <Reveal className="rounded-2xl border border-edge bg-pane/60 p-6">
-        <div className="flex items-center justify-between font-mono text-[11px] tracking-[0.18em]">
-          <span className="text-ink-3">A NORMAL AI API</span>
-          <span className="rounded-full border border-fail/40 px-2 py-0.5 text-fail">EXPOSED</span>
-        </div>
-        <div className="mt-5 space-y-3">
-          {WHO.map(([who, plain]) => (
-            <div key={who} className="flex gap-3 border-t border-edge pt-3 text-sm">
-              <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-fail" />
-              <div>
-                <div className="text-ink-2">{who}</div>
-                <div className="text-ink-3">{plain}</div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </Reveal>
-      <Reveal className="glow rounded-2xl border border-proof/30 bg-gradient-to-b from-proof/[0.06] to-pane/60 p-6" delay={100}>
-        <div className="flex items-center justify-between font-mono text-[11px] tracking-[0.18em]">
-          <span className="text-proof">THROUGH TINTED</span>
-          <span className="rounded-full border border-proof/40 px-2 py-0.5 text-proof">SEALED</span>
-        </div>
-        <div className="mt-5 space-y-3">
-          {WHO.map(([who, , tinted]) => (
-            <div key={who} className="flex gap-3 border-t border-proof/15 pt-3 text-sm">
-              <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-proof" />
-              <div>
-                <div className="text-ink">{who}</div>
-                <div className="text-ink-2">{tinted}</div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </Reveal>
-    </div>
-  );
-}
-
-/* ---------- features ---------- */
-
-function IconChip() {
-  return (
-    <svg viewBox="0 0 120 80" className="h-24 w-36" fill="none" stroke="#7a8784">
-      <path d="M20 44 L60 24 L100 44 L60 64 Z" />
-      <path d="M20 44 L20 50 L60 70 L100 50 L100 44" />
-      <path d="M40 44 L60 34 L80 44 L60 54 Z" stroke="#7fd1b9" />
-      {[0, 1, 2, 3].map((k) => (
-        <path key={k} d={`M${44 + k * 6} ${56 - k * 3} l0 6`} />
-      ))}
-    </svg>
-  );
-}
-function IconMask() {
-  return (
-    <svg viewBox="0 0 120 80" className="h-24 w-36" fill="none" stroke="#7a8784">
-      <path d="M30 30 L60 15 L90 30 L90 50 L60 65 L30 50 Z" />
-      <path d="M30 30 L60 45 L90 30 M60 45 L60 65" />
-      <circle cx="60" cy="38" r="5" stroke="#7fd1b9" />
-      <path d="M60 43 l0 8" stroke="#7fd1b9" />
-    </svg>
-  );
-}
-function IconChain() {
-  return (
-    <svg viewBox="0 0 120 80" className="h-24 w-36" fill="none" stroke="#7a8784">
-      {[0, 1, 2].map((k) => (
-        <g key={k} transform={`translate(${k * 22} ${-k * 11})`}>
-          <path d="M18 52 L40 41 L62 52 L40 63 Z" stroke={k === 2 ? "#7fd1b9" : "#7a8784"} />
-          <path d="M18 52 L18 57 L40 68 L62 57 L62 52" />
-        </g>
-      ))}
-    </svg>
-  );
-}
-
-function Features() {
-  const items: { path: string; title: string; body: string; icon: ReactNode; to: Parameters<typeof go>[0] }[] = [
-    { path: "/verify", title: "Check it yourself", body: "Fresh hardware quotes, bound keys and receipts you can verify in your browser.", icon: <IconChip />, to: "verify" },
-    { path: "/anonymous", title: "Pay without a trail", body: "Buy a note with USDC, redeem it with a zero-knowledge proof. No link left.", icon: <IconMask />, to: "credits" },
-    { path: "/receipts", title: "Every call, on-chain", body: "Signed receipts, batched into Merkle roots posted to Solana every hour.", icon: <IconChain />, to: "verify" },
-  ];
-  return (
-    <div className="grid border-y border-edge md:grid-cols-3">
-      {items.map((it, k) => (
-        <Reveal key={it.path} delay={k * 90} className={`group cursor-pointer transition hover:bg-pane/50 ${k ? "border-t border-edge md:border-t-0 md:border-l" : ""}`}>
-          <div onClick={() => go(it.to)} className="p-6 sm:p-8">
-            <div className="font-mono text-[11px] text-ink-3">{it.path}</div>
-            <div className="my-8 flex justify-center transition group-hover:scale-105">{it.icon}</div>
-            <div className="font-medium">{it.title}</div>
-            <p className="mt-1.5 text-sm text-ink-2">{it.body}</p>
-          </div>
-        </Reveal>
-      ))}
-    </div>
-  );
-}
-
-/* ---------- FAQ ---------- */
-
-const FAQ: [string, string][] = [
-  ["Can Tinted read my prompts?", "No. Your client opens TLS straight into a gateway running inside an Intel TDX enclave: api.tinted.market's certificate key exists only in there. Its code is open source and pinned by image digest, and the hardware quote proves which build is running. It forwards only to provider enclaves whose proofs just passed."],
-  ['What does "claimed" mean?', "The provider states it, but we couldn't prove it from vendor-signed evidence. Most often that's the exact model weights. You can require proved weights per request and the call is refused otherwise."],
-  ["What happens when a proof fails?", "The listing is taken off the market and no request is sent to it until it passes again. Re-checks run every 10 minutes."],
-  ["Am I getting the real model?", "For listings with proved weights, yes: the weights are pinned to a repository revision and a hash in the measured image. For the others the provider's statement is shown as exactly that."],
-  ["Is it anonymous?", "Keys need no email or wallet connect. For full unlinkability use anonymous credits: buy a note from your wallet, then redeem it with a zero-knowledge proof that shows it was paid for without revealing which payment was yours."],
-  ["Why Solana?", "USDC settles in seconds for fractions of a cent, and the receipt log and the anonymous-credit tree need a public, cheap, permanent home."],
-];
-
-function Faq() {
-  const [open, setOpen] = useState<number | null>(0);
-  return (
-    <div className="divide-y divide-edge border-y border-edge">
-      {FAQ.map(([q, a], k) => (
-        <div key={q}>
-          <button onClick={() => setOpen(open === k ? null : k)} className="flex w-full items-center justify-between gap-4 py-5 text-left text-lg hover:text-proof">
-            <span>{q}</span>
-            <span className={`grid size-7 shrink-0 place-items-center rounded-full border border-edge font-mono text-proof transition ${open === k ? "rotate-45" : ""}`}>+</span>
-          </button>
-          <div className={`grid transition-all duration-300 ${open === k ? "grid-rows-[1fr] pb-5" : "grid-rows-[0fr]"}`}>
-            <p className="overflow-hidden text-ink-2">{a}</p>
-          </div>
-        </div>
-      ))}
     </div>
   );
 }
 
 /* ---------- page ---------- */
 
+const FAQ: [string, string][] = [
+  ["Can Tinted read my prompts?", "No. Your connection is encrypted straight into our enclave (the certificate key was made in there), and from there only to provider enclaves whose stamps just came back PASS. The code is open source and the hardware proves which build is running."],
+  ["What does CLAIMED mean?", "The provider says it, but we couldn't prove it from vendor-signed evidence. It's usually the exact model weights. You can require proved weights on any call."],
+  ["What if a proof fails?", "The model leaves the market until it passes again. Nothing is sent to it in the meantime."],
+  ["Do I need an account?", "No email, no wallet connect, no KYC. A key is created in one click; pay with USDC on Solana, or anonymously with a note."],
+];
+
 export function Home() {
   const rows = useMarket();
   return (
     <div>
       <Hero rows={rows} />
-      <Ticker rows={rows} />
+      <Intro />
+      <Filmstrip rows={rows} />
 
-      <section className="py-24">
-        <Head kicker="// See through it" title="One prompt. Two sides of the glass." sub="You read your words. The machine that runs the model, and everyone who operates it, gets ciphertext." />
-        <Reveal className="mt-10">
-          <Demo />
-        </Reveal>
-      </section>
+      <Section n="02" title={<>Who can read it.</>} aside={<p className="max-w-xs font-mono text-[11px] text-ink-3 uppercase">Film samples · visible light transmission by who's looking</p>}>
+        <SwatchBook />
+      </Section>
 
-      <section className="py-12">
-        <Head kicker="// Live market" title="Proved, priced, re-checked." />
-        <div className="mt-10">
-          <Stats rows={rows} />
-        </div>
-      </section>
+      <Section n="03" title={<>Inspected before every call.</>} aside={<p className="max-w-xs text-ink-2">A real report, read live from the gateway. Pick any model on the market.</p>}>
+        <Inspection rows={rows} />
+      </Section>
 
-      <section className="py-24">
-        <div className="grid gap-6 lg:grid-cols-2 lg:items-end">
-          <Head kicker="// Models" title="One key. Every private model." />
-          <Reveal>
-            <p className="text-lg text-ink-2">Open models from the confidential-computing providers that pass the proofs, behind one OpenAI-compatible endpoint.</p>
-            <button onClick={() => go("market")} className="mt-3 text-proof hover:underline">
-              Browse the market →
+      <Section
+        n="04"
+        title="Price list."
+        aside={
+          <button onClick={() => go("market")} className="border-b border-ink font-mono text-[12px] uppercase hover:text-signal">
+            Full market →
+          </button>
+        }
+      >
+        <PriceList rows={rows} />
+        <p className="mt-4 font-mono text-[11px] text-ink-3 uppercase">Per million tokens · output in bold · only models that passed inspection are listed</p>
+      </Section>
+
+      <Section n="05" title={<>Every call leaves a receipt.</>}>
+        <div className="grid items-center gap-12 md:grid-cols-[1fr_auto]">
+          <div className="max-w-lg space-y-4 text-lg text-ink-2">
+            <p>Signed by a key that only exists inside Tinted's enclave. It records what was proved and what was charged, and hashes of what was said, never the words.</p>
+            <p>Every hour the receipts are folded into one Merkle root and written to Solana, so no one can quietly rewrite them later, including us.</p>
+            <p className="font-mono text-[12px] text-ink-3 uppercase">This one is real. It was printed from the live gateway just now.</p>
+            <button onClick={() => go("verify", SAMPLE_RECEIPT)} className="border-b border-ink font-mono text-[12px] text-ink uppercase hover:text-signal">
+              Check its signature in your browser →
             </button>
-          </Reveal>
-        </div>
-        <Reveal className="mt-10">
-          <Wall rows={rows} />
-        </Reveal>
-      </section>
-
-      <section className="py-12">
-        <div className="grid items-center gap-10 lg:grid-cols-[0.8fr_1.2fr]">
-          <div>
-            <Head kicker="// Two-minute setup" title="Change the base URL. Keep your code." />
-            <Reveal className="mt-6 space-y-3 text-ink-2">
-              <p>Two extra response headers tell you which proofs passed for that exact call and where its receipt lives.</p>
-              <div className="mt-6 inline-flex max-w-full flex-col rounded-xl border border-edge bg-pane">
-                <div className="border-b border-edge px-4 py-2 font-mono text-[11px] text-ink-3">GIVE TO YOUR AGENT</div>
-                <div className="flex items-center gap-3 px-4 py-3 font-mono text-[12.5px]">
-                  <span className="text-proof">›</span>
-                  <span className="truncate">Add Tinted to my app: tinted.market/llms.txt</span>
-                  <CopyBtn text="Add Tinted to my app: https://tinted.market/llms.txt" label="⧉" />
-                </div>
-              </div>
-            </Reveal>
           </div>
-          <Reveal delay={100}>
-            <CodeWindow />
-          </Reveal>
+          <ReceiptPaper />
+        </div>
+      </Section>
+
+      <Section n="06" title={<>Pay without a trail.</>}>
+        <div className="grid items-center gap-10 lg:grid-cols-[1fr_auto]">
+          <Ticket />
+          <div className="max-w-xs space-y-4 text-ink-2">
+            <p>Buy a note from any wallet. Redeem it later, from anywhere, with a proof that reveals nothing about which note it was.</p>
+            <button onClick={() => go("credits")} className="bg-ink px-5 py-3 font-semibold tracking-wide text-night uppercase hover:bg-signal">
+              Buy a note →
+            </button>
+          </div>
+        </div>
+      </Section>
+
+      <section className="film -mx-4 px-4 py-16 sm:py-24">
+        <div className="grid gap-10 lg:grid-cols-[1fr_1.4fr] lg:items-end">
+          <div>
+            <div className="font-mono text-[12px] text-white/50">§ 07</div>
+            <h2 className="condensed mt-3 text-4xl leading-[0.92] uppercase sm:text-6xl">The whole migration is one line.</h2>
+          </div>
+          <div className="font-mono text-[clamp(12px,1.5vw,17px)] leading-loose">
+            <div className="text-white/35 line-through decoration-signal decoration-2">− base_url = "https://api.openai.com/v1"</div>
+            <div>
+              + base_url = "<span className="text-signal">{GATEWAY}/v1</span>"
+            </div>
+            <div className="mt-6 text-[12px] text-white/50">
+              # every response comes back with x-tinted-verified and x-tinted-receipt
+              <br /># agents: read tinted.market/llms.txt
+            </div>
+          </div>
         </div>
       </section>
 
-      <section className="py-24">
-        <Head kicker="// How a call works" title="Five steps. Nothing in the clear." />
-        <Reveal className="mt-12">
-          <Steps />
-        </Reveal>
-      </section>
-
-      <section className="py-12">
-        <Head kicker="// Privacy" title="Who can read your prompt?" />
-        <div className="mt-10">
-          <Compare />
-        </div>
-      </section>
-
-      <section className="py-24">
-        <Features />
-      </section>
-
-      <section className="py-12">
-        <Head kicker="// The proofs" title="Checked against the chipmakers, not the provider's word." />
-        <div className="mt-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          {CLAIMS.map((c, k) => (
-            <Reveal key={c} delay={k * 60} className="rounded-2xl border border-edge bg-pane p-5 transition hover:border-proof/40">
-              <div className="flex items-center justify-between">
-                <span className="font-mono text-[11px] text-ink-3">{String(k + 1).padStart(2, "0")}</span>
-                <Badge name={c} state="verified" compact />
+      <Section n="08" title="Fair questions.">
+        <div className="grid gap-x-16 gap-y-10 md:grid-cols-2">
+          {FAQ.map(([q, a], k) => (
+            <div key={q} className="grid grid-cols-[36px_1fr] gap-2">
+              <span className="font-mono text-[12px] text-ink-3">Q{k + 1}</span>
+              <div>
+                <div className="text-xl font-semibold">{q}</div>
+                <p className="mt-2 text-ink-2">{a}</p>
               </div>
-              <div className="mt-8 text-xl font-semibold tracking-[-0.02em]">{CLAIM_LABEL[c]}</div>
-              <p className="mt-2 text-sm text-ink-2">{CLAIM_HINT[c]}</p>
-            </Reveal>
+            </div>
           ))}
         </div>
-      </section>
-
-      <section className="py-24">
-        <div className="grid gap-10 lg:grid-cols-[0.8fr_1.2fr]">
-          <Head kicker="// FAQ" title="Questions worth asking." />
-          <Reveal>
-            <Faq />
-          </Reveal>
-        </div>
-      </section>
-
-      <section className="relative -mx-4 overflow-hidden border-t border-edge px-4 py-28 text-center">
-        <div className="grid-bg pointer-events-none absolute inset-0" />
-        <div className="halo pointer-events-none absolute inset-x-0 top-0 mx-auto h-full max-w-3xl" />
-        <Reveal className="relative">
-          <h2 className="text-5xl font-semibold tracking-[-0.045em] sm:text-7xl">
-            Say it <span className="font-display font-normal tracking-normal text-proof italic">privately.</span>
-          </h2>
-          <p className="mx-auto mt-4 max-w-xl text-lg text-ink-2">A key takes one click. Top up a few dollars of USDC, or buy an anonymous note, and every call comes with its proof.</p>
-          <div className="mt-8 flex flex-wrap justify-center gap-3">
-            <button onClick={() => go("chat")} className="rounded-lg bg-proof px-5 py-3 font-medium text-night hover:brightness-110">
-              Start a private chat →
-            </button>
-            <button onClick={() => go("credits")} className="rounded-lg border border-edge bg-pane px-5 py-3 font-medium hover:border-ink-3">
-              Buy an anonymous note
-            </button>
-          </div>
-        </Reveal>
-      </section>
+      </Section>
     </div>
   );
 }
