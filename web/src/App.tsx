@@ -56,6 +56,10 @@ export function App() {
     return () => removeEventListener("hashchange", on);
   }, []);
 
+  useEffect(() => {
+    document.title = `${ROUTES[route]} | Tinted`;
+  }, [route]);
+
   return (
     <div className="min-h-screen overflow-x-clip">
       <nav className="sticky top-0 z-30 border-b border-edge/70 bg-night/80 backdrop-blur-xl">
