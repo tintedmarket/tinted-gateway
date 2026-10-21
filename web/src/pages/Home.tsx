@@ -202,12 +202,12 @@ function Hero({ rows }: { rows: MarketRow[] | null }) {
     <section className="relative">
       <div className={`${W} grid gap-10 pt-28 pb-16 sm:pt-40 lg:grid-cols-2 lg:items-end`}>
         <h1 className="h-display text-[44px] leading-[1.02] sm:text-[64px]">
-          Private by hardware.
+          The Private
           <br />
-          Proven every call.
+          Inference Market.
         </h1>
         <div className="lg:text-right">
-          <p className="text-lg text-ink-2 lg:ml-auto lg:max-w-sm">Every model runs in a sealed enclave. Tinted inspects the proof before your prompt leaves.</p>
+          <p className="text-lg text-ink-2 lg:ml-auto lg:max-w-sm">Private by hardware, proven every call. Every model runs in a sealed enclave, and Tinted inspects the proof before your prompt leaves.</p>
           <button onClick={() => go("credits")} className="mt-6 inline-flex items-center gap-2 rounded-full border border-signal/30 bg-signal/[0.06] px-4 py-2 text-[15px] text-ink transition hover:border-signal/60">
             <Mark className="size-4" tone="#6fd6c4" /> Introducing anonymous credits <span className="text-ink-2">→</span>
           </button>
