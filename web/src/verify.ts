@@ -1,7 +1,7 @@
 import { ed25519 } from "@noble/curves/ed25519";
 import { sha256 } from "@noble/hashes/sha256";
 import { bytesToHex, hexToBytes, utf8ToBytes, concatBytes } from "@noble/hashes/utils";
-import type { Anchor, Receipt } from "./api";
+import { api, type Anchor, type Receipt } from "./api";
 
 /** In-browser receipt checks: nothing here trusts the gateway's own "signatureValid". */
 const canon = (o: unknown): string =>
@@ -21,15 +21,8 @@ export function checkInclusion(id: string, signature: string, a: Anchor): boolea
   return bytesToHex(h) === a.root;
 }
 
-/** Read the anchor memo from Solana itself and check it names this root and was signed by the expected key. */
+/** Read the anchor memo from Solana (through the gateway's RPC; public RPCs refuse browsers) and check root and signer. */
 export async function checkAnchorOnChain(a: Anchor, solanaKey?: string): Promise<{ memo: string | null; rootMatches: boolean; signer: string | null; signerMatches: boolean | null }> {
-  const res = await fetch("https://api.mainnet-beta.solana.com", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "getTransaction", params: [a.tx, { encoding: "jsonParsed", maxSupportedTransactionVersion: 0, commitment: "confirmed" }] }),
-  });
-  const tx = (await res.json()).result as { transaction: { message: { accountKeys: { pubkey: string; signer: boolean }[]; instructions: { parsed?: unknown; program?: string }[] } } } | null;
-  const memo = (tx?.transaction.message.instructions.find((i) => i.program === "spl-memo")?.parsed as string | undefined) ?? null;
-  const signer = tx?.transaction.message.accountKeys.find((k) => k.signer)?.pubkey ?? null;
-  return { memo, rootMatches: !!memo?.includes(a.root), signer, signerMatches: solanaKey && signer ? signer === solanaKey : null };
+  const tx = await api.solanaTx(a.tx);
+  return { memo: tx.memo, rootMatches: !!tx.memo?.includes(a.root), signer: tx.signer, signerMatches: solanaKey && tx.signer ? tx.signer === solanaKey : null };
 }

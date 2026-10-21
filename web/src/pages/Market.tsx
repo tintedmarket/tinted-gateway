@@ -54,46 +54,43 @@ export function Market() {
 
   return (
     <div>
-      <header className="mb-10 grid gap-6 border-b border-ink pb-6 lg:grid-cols-[1fr_auto] lg:items-end">
+      <header className="mb-12 grid gap-8 lg:grid-cols-2 lg:items-end">
         <div>
-          <div className="flex items-center gap-2 font-mono text-[11px] tracking-[0.12em] text-ink-2 uppercase">
-            <span className="inline-block size-2.5 bg-signal" />
-            Market
-          </div>
-          <h1 className="condensed mt-3 text-5xl leading-[0.9] uppercase sm:text-7xl">Every model, inspected.</h1>
-          <p className="mt-4 max-w-2xl text-lg text-ink-2">Only models that passed inspection in the last 10 minutes are listed. Prices are per million tokens, including Tinted's fee.</p>
+          <div className="text-sm text-ink-3">Market</div>
+          <h1 className="h-display mt-2 text-4xl leading-[1.04] sm:text-[56px]">Every model, inspected.</h1>
+          <p className="mt-5 max-w-xl text-lg text-ink-2">Only models that passed inspection in the last 10 minutes are listed. Prices are per million tokens, including Tinted's fee.</p>
         </div>
-        <div className="flex gap-8 font-mono">
+        <div className="flex gap-10 lg:justify-end">
           {[
             [rows ? live.filter((r) => r.routable).length : "…", "models live"],
             [rows ? providers : "…", providers === 1 ? "provider" : "providers"],
             [rows ? live.filter((r) => r.claims?.weights === "verified").length : "…", "weights proved"],
           ].map(([v, l]) => (
             <div key={l as string}>
-              <div className="condensed text-5xl">{v}</div>
-              <div className="text-[11px] text-ink-3 uppercase">{l}</div>
+              <div className="h-display text-4xl">{v}</div>
+              <div className="mt-1 text-sm text-ink-3">{l}</div>
             </div>
           ))}
         </div>
       </header>
 
       <div className="mb-3 flex flex-wrap items-center gap-2">
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search models…" className="min-w-56 flex-1 rounded-xl border border-edge bg-pane px-4 py-2.5 text-sm outline-none focus:border-proof/50" />
-        <div className="flex rounded-xl border border-edge bg-pane p-1 text-xs">
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search models…" className="min-w-56 flex-1 rounded-full border border-edge bg-pane px-5 py-2.5 text-sm outline-none focus:border-proof/50" />
+        <div className="flex rounded-full border border-edge bg-pane p-1 text-xs">
           {(["proofs", "price"] as Sort[]).map((s) => (
-            <button key={s} onClick={() => setSort(s)} className={`rounded-lg px-3 py-1.5 ${sort === s ? "bg-pane-2 text-ink" : "text-ink-3"}`}>
+            <button key={s} onClick={() => setSort(s)} className={`rounded-full px-3 py-1.5 ${sort === s ? "bg-pane-2 text-ink" : "text-ink-3"}`}>
               {s === "proofs" ? "Most proved" : "Cheapest"}
             </button>
           ))}
         </div>
-        <button onClick={() => setWeightsOnly(!weightsOnly)} className={`rounded-xl border px-3 py-2.5 text-xs ${weightsOnly ? "border-proof/50 bg-proof/10 text-proof" : "border-edge bg-pane text-ink-3"}`}>
+        <button onClick={() => setWeightsOnly(!weightsOnly)} className={`rounded-full border px-4 py-2.5 text-xs ${weightsOnly ? "border-proof/50 bg-proof/10 text-proof" : "border-edge bg-pane text-ink-3"}`}>
           Weights proved
         </button>
       </div>
 
       {err && <div className="rounded-xl border border-fail/40 p-4 text-sm text-fail">Couldn't reach the gateway: {err}</div>}
 
-      <div className="overflow-hidden rounded-2xl border border-edge bg-pane/50">
+      <div className="overflow-hidden rounded-[14px] border border-edge bg-pane">
         <div className="hidden grid-cols-[1.6fr_1.4fr_0.9fr_auto] gap-4 border-b border-edge px-5 py-3 font-mono text-[11px] text-ink-3 md:grid">
           <span>model</span>
           <span>proofs</span>
@@ -107,7 +104,7 @@ export function Market() {
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="truncate font-medium">{r.name}</span>
-                  {r.claims?.weights === "verified" && <span className="border border-proof px-1.5 font-mono text-[10px] text-proof">5/5</span>}
+                  {r.claims?.weights === "verified" && <span className="rounded-full border border-edge px-2 py-px text-[11px] text-proof">5/5</span>}
                 </div>
                 <div className="truncate font-mono text-[11px] text-ink-3">{r.id}</div>
               </div>
@@ -120,10 +117,10 @@ export function Market() {
                 <span className="text-ink-3">{usd(r.inputPerM)}</span> <span className="text-ink-3">/</span> <span className="text-ink">{usd(r.outputPerM)}</span>
               </div>
               <div className="flex w-40 justify-end gap-2">
-                <button onClick={() => setOpen(open === r.id ? null : r.id)} className="rounded-lg border border-edge px-3 py-1.5 text-xs text-ink-2 hover:text-ink">
+                <button onClick={() => setOpen(open === r.id ? null : r.id)} className="rounded-full border border-edge bg-pane-2 px-3 py-1.5 text-xs text-ink-2 hover:text-ink">
                   {open === r.id ? "Close" : "Evidence"}
                 </button>
-                <button disabled={!r.routable} onClick={() => go("chat", r.id)} className="bg-ink px-3 py-1.5 text-xs font-semibold text-night uppercase hover:bg-signal disabled:opacity-30">
+                <button disabled={!r.routable} onClick={() => go("chat", r.id)} className="rounded-full bg-ink px-3 py-1.5 text-xs font-medium text-night hover:bg-white disabled:opacity-30">
                   {r.routable ? "Chat →" : "Checking"}
                 </button>
               </div>

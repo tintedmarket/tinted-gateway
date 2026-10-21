@@ -1,15 +1,18 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { api, CLAIMS, GATEWAY, type Anchor, type ClaimName, type ClaimState, type MarketRow, type Receipt } from "../api";
+import { api, CLAIMS, GATEWAY, type MarketRow } from "../api";
 import { CLAIM_LABEL } from "../ui";
-import { go } from "../App";
+import { go, Mark } from "../App";
 
+/* ---------- shared ---------- */
+
+const W = "mx-auto max-w-[1344px] px-6";
+const LOG_KEY = "Dpv6Pp6QceJEroUywrfSDSQDrZKc7W2V3SSfyYw7sNSw";
+const usd = (n: number) => `$${n < 0.1 ? n.toFixed(3) : n.toFixed(2)}`;
 const ago = (iso: string | null | undefined) => {
   if (!iso) return "—";
   const s = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 1000));
   return s < 60 ? `${s}s ago` : s < 3600 ? `${Math.round(s / 60)} min ago` : `${Math.round(s / 3600)} h ago`;
 };
-const usd = (n: number) => `$${n < 0.1 ? n.toFixed(3) : n.toFixed(2)}`;
-const short = (s: string, a = 6, b = 6) => (s.length > a + b + 1 ? `${s.slice(0, a)}…${s.slice(-b)}` : s);
 
 function useMarket() {
   const [rows, setRows] = useState<MarketRow[] | null>(null);
@@ -21,399 +24,651 @@ function useMarket() {
   }, []);
   return rows;
 }
+function useTick(ms: number) {
+  const [n, set] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => set((x) => x + 1), ms);
+    return () => clearInterval(t);
+  }, [ms]);
+  return n;
+}
 
-function Section({ n, title, children, aside }: { n: string; title: ReactNode; children: ReactNode; aside?: ReactNode }) {
+function Reveal({ children, className = "", delay = 0 }: { children: ReactNode; className?: string; delay?: number }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const io = new IntersectionObserver(([e]) => e.isIntersecting && (el.classList.add("in"), io.disconnect()), { threshold: 0.1 });
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
   return (
-    <section className="border-t border-ink py-16 sm:py-24">
-      <div className="mb-10 grid gap-4 sm:grid-cols-[120px_1fr_auto] sm:items-start">
-        <div className="font-mono text-[12px] text-ink-3">§ {n}</div>
-        <h2 className="condensed text-4xl leading-[0.92] uppercase sm:text-6xl">{title}</h2>
-        {aside}
-      </div>
+    <div ref={ref} className={`reveal ${className}`} style={{ transitionDelay: `${delay}ms` }}>
       {children}
-    </section>
+    </div>
   );
 }
 
-const PROMPTS = [
-  "Here are my lab results from Tuesday. What should I ask my doctor?",
-  "Help me write my resignation. My manager doesn't know yet.",
-  "Go through our Q3 numbers before the board sees them.",
-  "Can they really fire me for this? Here's the email.",
-  "Find the bug in our private repo before the audit.",
-  "What are my options if I can't pay this tax bill?",
-  "Summarize this term sheet. Anything unusual in the liquidation preference?",
-];
-
-/* ---------- the hero: a pane of film you drag across your own sentence ---------- */
-
-function Hero({ rows }: { rows: MarketRow[] | null }) {
-  const [x, setX] = useState(58);
-  const [i, setI] = useState(0);
-  const box = useRef<HTMLDivElement>(null);
-  const drag = useRef(false);
-  const ok = rows?.filter((r) => r.routable) ?? [];
-  const last = rows?.map((r) => r.checkedAt).filter(Boolean).sort().at(-1);
-  const move = (clientX: number) => {
-    const r = box.current!.getBoundingClientRect();
-    setX(Math.min(94, Math.max(8, ((clientX - r.left) / r.width) * 100)));
-  };
-  const text = PROMPTS[i];
-  const sentence = (cls = "") => <p className={`condensed text-[clamp(46px,8.6vw,150px)] leading-[0.86] tracking-[-0.015em] ${cls}`}>{text}</p>;
-
+function Split({ title, children, link }: { title: ReactNode; children: ReactNode; link?: [string, () => void] }) {
   return (
-    <section className="-mx-4 border-b border-ink">
-      <div className="flex justify-between border-b border-ink px-4 py-2 font-mono text-[11px] text-ink-2 uppercase">
-        <span>Nº 01 — The private inference market</span>
-        <span className="hidden sm:block">Intel TDX · NVIDIA CC · Solana</span>
-      </div>
-      <div
-        ref={box}
-        className="relative h-[min(72vh,680px)] min-h-[480px] touch-none overflow-hidden select-none"
-        onPointerMove={(e) => drag.current && move(e.clientX)}
-        onPointerUp={() => (drag.current = false)}
-        onPointerLeave={() => (drag.current = false)}
-      >
-        {/* your side: the sentence, in the clear */}
-        <div className="absolute inset-x-4 top-10 sm:inset-x-10 sm:top-14">{sentence()}</div>
-        <div className="absolute bottom-4 left-4 font-mono text-[11px] uppercase sm:left-10">
-          <div className="text-ink-3">Your side</div>
-          <div>
-            <span className="sm:hidden">VLT 100%</span>
-            <span className="hidden sm:inline">Visible light transmission 100%</span>
-          </div>
-          <button onClick={() => setI((i + 1) % PROMPTS.length)} className="mt-3 border-b border-ink text-ink hover:text-signal">
-            Another sentence ↻
+    <Reveal className="grid gap-6 lg:grid-cols-2">
+      <h2 className="h-display text-4xl leading-[1.04] sm:text-5xl">{title}</h2>
+      <div>
+        <p className="max-w-xl text-xl leading-snug text-ink-2 sm:text-[22px]">{children}</p>
+        {link && (
+          <button onClick={link[1]} className="mt-8 text-ink-2 transition hover:text-ink">
+            {link[0]} <span className="ml-1">→</span>
           </button>
-        </div>
-
-        {/* their side: smoked film; all that comes back is a faint reflection */}
-        <div className="film film-solid absolute inset-y-0 right-0" style={{ left: `${x}%` }}>
-          <div className="absolute inset-y-0 right-0 overflow-hidden" style={{ left: 0 }}>
-            <div className="absolute top-10 opacity-[0.035] blur-[1.5px] sm:top-14" style={{ left: `calc(-${x}vw + 1rem)`, width: "calc(100vw - 2rem)", transform: "scaleX(-1)" }}>
-              {sentence("text-white")}
-            </div>
-          </div>
-          <div className="absolute bottom-4 left-5 font-mono text-[11px] uppercase">
-            <div className="text-white/45">The operator's side</div>
-            <div className="text-white/80">
-              <span className="sm:hidden">VLT 0%</span>
-              <span className="hidden sm:inline">Visible light transmission 0%</span>
-            </div>
-          </div>
-          {/* the maker's sticker, with live numbers */}
-          <div className="absolute top-[46%] right-3 w-[min(270px,80%)] rotate-[-2deg] bg-night text-ink shadow-[0_6px_18px_rgba(0,0,0,.45)] sm:right-10">
-            <div className="flex items-center justify-between bg-signal px-3 py-1.5 text-white">
-              <span className="condensed text-lg uppercase">Tinted</span>
-              <span className="hidden font-mono text-[10px] sm:inline">FILM T-0</span>
-            </div>
-            <div className="space-y-1 px-3 py-2.5 font-mono text-[11px]">
-              <div className="flex">
-                <span>VLT</span>
-                <span className="leader" />
-                <span>0%</span>
-              </div>
-              <div className="hidden sm:flex">
-                <span>Models proved</span>
-                <span className="leader" />
-                <span>{rows ? ok.length : "…"}</span>
-              </div>
-              <div className="hidden sm:flex">
-                <span>Last inspection</span>
-                <span className="leader" />
-                <span>{ago(last)}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* the edge of the film: drag it */}
-        <div
-          className="absolute inset-y-0 z-10 flex w-6 -translate-x-1/2 cursor-ew-resize items-center justify-center"
-          style={{ left: `${x}%` }}
-          onPointerDown={(e) => {
-            drag.current = true;
-            (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
-          }}
-          onPointerMove={(e) => drag.current && move(e.clientX)}
-          onPointerUp={() => (drag.current = false)}
-        >
-          <div className="h-full w-[3px] bg-ink" />
-          <div className="absolute top-1/2 flex h-16 w-5 -translate-y-1/2 flex-col items-center justify-center gap-1 border border-ink bg-night">
-            {[0, 1, 2].map((k) => (
-              <span key={k} className="h-px w-2.5 bg-ink" />
-            ))}
-          </div>
-          <div className="absolute top-3 left-5 font-mono text-[10px] whitespace-nowrap text-ink-3 uppercase">⟷ drag the film</div>
-        </div>
+        )}
       </div>
-    </section>
+    </Reveal>
   );
 }
 
-function Intro() {
-  return (
-    <section className="grid gap-8 py-12 lg:grid-cols-[1.1fr_1fr_auto] lg:items-end">
-      <h1 className="condensed text-5xl leading-[0.88] uppercase sm:text-7xl">
-        Private AI
-        <br />
-        you can <span className="text-signal">check.</span>
-      </h1>
-      <p className="max-w-md text-lg leading-snug text-ink-2">
-        Every model on Tinted runs inside a hardware enclave. Before your words leave, we inspect the chip, the GPU, the code, the weights and the keys. You read the answer.
-        Nobody running the machine can. Not even us.
-      </p>
-      <div className="flex flex-col gap-2 sm:flex-row lg:flex-col">
-        <button onClick={() => go("chat")} className="bg-ink px-6 py-4 text-left font-semibold tracking-wide text-night uppercase hover:bg-signal">
-          Open a private chat →
-        </button>
-        <button onClick={() => go("account")} className="border border-ink px-6 py-4 text-left font-semibold tracking-wide uppercase hover:bg-ink hover:text-night">
-          Get an API key
-        </button>
-      </div>
-    </section>
-  );
-}
+const Check = ({ className = "text-proof" }: { className?: string }) => (
+  <svg viewBox="0 0 16 16" className={`size-4 ${className}`} fill="none" stroke="currentColor" strokeWidth="1.6">
+    <circle cx="8" cy="8" r="6.5" opacity=".35" />
+    <path d="M5.2 8.2l1.9 1.9 3.8-4" />
+  </svg>
+);
 
-/* ---------- a strip of film with sprocket holes, carrying the live market ---------- */
+/* ---------- hero: the product, doing its job ---------- */
 
-function Filmstrip({ rows }: { rows: MarketRow[] | null }) {
-  const ok = (rows ?? []).filter((r) => r.routable);
-  if (!ok.length) return null;
-  const items = [...ok, ...ok, ...ok, ...ok];
-  const holes = <div className="h-2.5 w-full" style={{ backgroundImage: "linear-gradient(90deg, #ebe8e1 0 12px, transparent 12px 26px)", backgroundSize: "26px 100%" }} />;
-  return (
-    <div className="-mx-4 overflow-hidden bg-glass py-2 text-night">
-      {holes}
-      <div className="roll flex w-max gap-12 py-3 font-mono text-[13px] whitespace-nowrap uppercase">
-        {items.map((r, k) => (
-          <span key={k}>
-            {r.name} <span className="text-white/40">—</span> {CLAIMS.filter((c) => r.claims?.[c] === "verified").length}/5 proved <span className="text-white/40">—</span> {usd(r.outputPerM)}/M
-          </span>
-        ))}
-      </div>
-      {holes}
-    </div>
-  );
-}
-
-/* ---------- swatch book: how much of your sentence each party can see ---------- */
-
-const PARTIES: [string, string, number, number, string?][] = [
-  ["You", "the person typing", 100, 100],
-  ["The model provider", "their staff, their logs", 88, 0],
-  ["The cloud or GPU host", "anyone who can read memory", 72, 0],
-  ["The router in between", "a normal API gateway", 100, 0],
-  ["A breach, years later", "whatever was logged", 90, 0],
-  ["Your payment trail", "who paid for this call", 100, 0, "Card ending 4417 · alex.m@…"],
+const DEMO: { q: string; a: string }[] = [
+  { q: "Here are my lab results from Tuesday. What should I ask my doctor?", a: "Your ferritin is low and your TSH is slightly high. Ask whether the two are related, whether you should be tested for thyroid antibodies, and if iron supplements make sense before a recheck in six weeks." },
+  { q: "Help me write my resignation. My manager doesn't know yet.", a: "Keep it short and warm: thank them for the chance to grow, give your last day, and offer to document your projects before you go. Here's a draft you can send as-is…" },
+  { q: "Go through our Q3 numbers before the board sees them.", a: "Revenue is up 18% but gross margin fell four points, almost all from the hardware line. The board will ask about it first: lead with the fix, then the growth." },
+];
+const STEPS: [string, string, string][] = [
+  ["CPU enclave", "Intel TDX · quote up to date", "38 ms"],
+  ["GPU enclave", "NVIDIA H100 · confidential mode", "51 ms"],
+  ["Code", "Sigstore release, measured", "12 ms"],
+  ["Weights", "google/gemma-4-31B-it @842da37", "9 ms"],
+  ["Keys", "bound to the attestation", "4 ms"],
 ];
 
-function Swatch({ vlt, text, n }: { vlt: number; text: string; n: string }) {
-  const dark = vlt < 50;
+function SideIcon({ d }: { d: string }) {
   return (
-    <div className="relative h-20 overflow-hidden border border-ink bg-[#f4f2ec]">
-      <div className="absolute inset-x-3 bottom-2 truncate font-mono text-[13px] text-ink">{text}</div>
-      <div className={`film absolute inset-0 ${vlt === 0 ? "film-solid" : ""}`} style={{ opacity: 1 - vlt / 100 }} />
-      <div className={`absolute top-1.5 left-3 font-mono text-[10px] ${dark ? "text-white/60" : "text-ink-3"}`}>{n}</div>
-      <div className={`absolute top-1.5 right-3 font-mono text-[11px] font-semibold ${dark ? "text-white" : "text-ink"}`}>VLT {vlt}%</div>
-    </div>
-  );
-}
-
-function SwatchBook() {
-  const line = "my lab results from Tuesday, what should I ask";
-  return (
-    <div>
-      <div className="mb-3 hidden grid-cols-[1fr_1.2fr_1.2fr] gap-4 font-mono text-[11px] text-ink-3 uppercase md:grid">
-        <span>Who is looking</span>
-        <span>An ordinary AI API</span>
-        <span>Through Tinted</span>
-      </div>
-      <div className="space-y-3">
-        {PARTIES.map(([who, note, plain, tinted, alt], k) => (
-          <div key={who} className="grid gap-3 md:grid-cols-[1fr_1.2fr_1.2fr] md:items-center md:gap-4">
-            <div>
-              <div className="condensed text-2xl uppercase">{who}</div>
-              <div className="text-sm text-ink-3">{note}</div>
-            </div>
-            <Swatch vlt={plain} text={alt ?? line} n={`Nº A-${k + 1}`} />
-            <Swatch vlt={tinted} text={alt && tinted < 50 ? "note #4f1… redeemed by zero-knowledge proof" : line} n={`Nº T-${k + 1}`} />
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/* ---------- inspection sheet: the five proofs for one real model, stamped ---------- */
-
-const STAMP: Record<ClaimState, [string, string]> = { verified: ["Pass", "text-proof"], provider: ["Claimed", "text-claim"], failed: ["Fail", "text-fail"], unknown: ["Pending", "text-ink-3"] };
-
-function Inspection({ rows }: { rows: MarketRow[] | null }) {
-  const ok = useMemo(() => (rows ?? []).filter((r) => r.routable), [rows]);
-  const [id, setId] = useState("");
-  const [v, setV] = useState<Awaited<ReturnType<typeof api.verification>> | null>(null);
-  useEffect(() => {
-    if (!id && ok.length) setId(ok.find((r) => r.id.includes("gemma"))?.id ?? ok[0].id);
-  }, [ok, id]);
-  useEffect(() => {
-    if (!id) return;
-    setV(null);
-    api.verification(id).then(setV, () => undefined);
-  }, [id]);
-  const row = ok.find((r) => r.id === id);
-
-  return (
-    <div className="border border-ink bg-[#f4f2ec]">
-      <div className="grid gap-3 border-b border-ink p-4 font-mono text-[12px] sm:grid-cols-[auto_1fr_auto] sm:items-center">
-        <span className="text-ink-3 uppercase">Specimen</span>
-        <select value={id} onChange={(e) => setId(e.target.value)} className="border-b border-ink bg-transparent py-1 font-mono text-[13px] outline-none">
-          {ok.map((r) => (
-            <option key={r.id} value={r.id}>
-              {r.name} — {r.id}
-            </option>
-          ))}
-        </select>
-        <span className="text-ink-3 uppercase">Inspected {ago(v?.checkedAt ?? row?.checkedAt)}</span>
-      </div>
-      {CLAIMS.map((c: ClaimName, k) => {
-        const st = v?.claims[c].state ?? "unknown";
-        return (
-          <div key={c} className="grid grid-cols-[32px_1fr_auto] items-center gap-x-4 gap-y-2 border-b border-edge px-4 py-5 last:border-b-0 md:grid-cols-[48px_200px_1fr_130px]">
-            <span className="font-mono text-[12px] text-ink-3">{String(k + 1).padStart(2, "0")}</span>
-            <span className="condensed text-2xl uppercase">{CLAIM_LABEL[c]}</span>
-            <span className="order-last col-span-3 font-mono text-[12px] leading-relaxed break-words text-ink-2 md:order-none md:col-span-1">{v ? v.claims[c].detail : "reading the evidence…"}</span>
-            <span className={`justify-self-end text-xl ${STAMP[st][1]}`}>
-              <span className="stamp">{STAMP[st][0]}</span>
-            </span>
-          </div>
-        );
-      })}
-      <div className="border-t border-ink px-4 py-3 font-mono text-[11px] text-ink-3 uppercase">
-        Checked against Intel, AMD and NVIDIA signing roots · re-inspected every 10 minutes · a failed stamp takes the model off the market
-      </div>
-    </div>
-  );
-}
-
-/* ---------- price list ---------- */
-
-function PriceList({ rows }: { rows: MarketRow[] | null }) {
-  const ok = (rows ?? []).filter((r) => r.routable).sort((a, b) => a.outputPerM - b.outputPerM);
-  return (
-    <div className="grid gap-x-16 md:grid-cols-2">
-      {ok.map((r) => (
-        <button key={r.id} onClick={() => go("chat", r.id)} className="group flex items-baseline gap-3 border-b border-edge py-3 text-left">
-          <span className="text-lg font-semibold group-hover:text-signal">{r.name}</span>
-          <span className="hidden font-mono text-[11px] text-ink-3 sm:inline">{r.provider}</span>
-          <span className="leader" />
-          <span className="font-mono text-[13px] text-ink-3">{usd(r.inputPerM)} in</span>
-          <span className="font-mono text-[15px] font-semibold">{usd(r.outputPerM)}</span>
-        </button>
-      ))}
-      {!rows && <div className="font-mono text-sm text-ink-3">Reading the market…</div>}
-    </div>
-  );
-}
-
-/* ---------- a real receipt, printed ---------- */
-
-const SAMPLE_RECEIPT = "rcpt_38ff9ae75e6c9cff09f34ddf";
-
-function Barcode({ hex }: { hex: string }) {
-  const bars = hex.slice(0, 48).split("").map((h) => parseInt(h, 16));
-  let x = 0;
-  return (
-    <svg viewBox={`0 0 ${bars.reduce((a, b) => a + (b % 3) + 2, 0)} 30`} className="h-10 w-full" preserveAspectRatio="none">
-      {bars.map((b, k) => {
-        const w = (b % 3) + 1;
-        const el = k % 2 === 0 ? <rect key={k} x={x} y={0} width={w} height={30} fill="#121211" /> : null;
-        x += w + 1;
-        return el;
-      })}
+    <svg viewBox="0 0 16 16" className="size-4 text-ink-3" fill="none" stroke="currentColor" strokeWidth="1.3">
+      <path d={d} />
     </svg>
   );
 }
 
-function ReceiptPaper() {
-  const [r, setR] = useState<{ receipt: Receipt; signature: string; anchor: Anchor | null } | null>(null);
+function AppMock({ rows }: { rows: MarketRow[] | null }) {
+  const [i, setI] = useState(0);
+  const [t, setT] = useState(0);
+  const d = DEMO[i];
+  // A small timeline per prompt: type the question, run the five checks, stream the answer, print the receipt, next.
   useEffect(() => {
-    api.receipt(SAMPLE_RECEIPT).then(setR, () => undefined);
-  }, []);
-  const line = (a: ReactNode, b: ReactNode) => (
-    <div className="flex gap-2">
-      <span>{a}</span>
-      <span className="leader" />
-      <span className="text-right">{b}</span>
-    </div>
-  );
+    const total = d.q.length + 6 * 5 + d.a.length / 2 + 90;
+    const h = setTimeout(() => {
+      if (t < total) setT(t + 1);
+      else {
+        setT(0);
+        setI((i + 1) % DEMO.length);
+      }
+    }, 28);
+    return () => clearTimeout(h);
+  }, [t, i, d]);
+  const typed = d.q.slice(0, t);
+  const after = Math.max(0, t - d.q.length);
+  const checks = Math.min(5, Math.floor(after / 6));
+  const answer = checks === 5 ? d.a.slice(0, Math.max(0, (after - 30) * 2)) : "";
+  const done = answer.length >= d.a.length;
+  const live = rows?.filter((r) => r.routable).length;
+
   return (
-    <div className="mx-auto w-full max-w-[360px] rotate-[1.5deg] drop-shadow-[0_14px_22px_rgba(0,0,0,.18)]">
-      <div className="zigzag rotate-180" />
-      <div className="bg-[#f7f5f0] px-6 py-5 font-mono text-[12px] leading-relaxed text-ink">
-        <div className="text-center">
-          <div className="condensed text-3xl uppercase">Tinted</div>
-          <div className="text-[11px] text-ink-3">private inference receipt</div>
-        </div>
-        <div className="my-3 border-t border-dashed border-ink-3" />
-        {r ? (
-          <div className="space-y-0.5">
-            {line("ID", short(r.receipt.id, 10, 4))}
-            {line("Date", new Date(r.receipt.at).toISOString().slice(0, 16).replace("T", " "))}
-            {line("Model", r.receipt.listing.split("/")[1])}
-            {line("Tokens", `${r.receipt.usage.input} in / ${r.receipt.usage.output} out`)}
-            {line("Charged", `$${(r.receipt.costMicros / 1e6).toFixed(6)}`)}
-            <div className="my-3 border-t border-dashed border-ink-3" />
-            {Object.entries(r.receipt.verified).map(([k, s]) => line(k.toUpperCase(), s === "verified" ? "PASS" : s.toUpperCase()))}
-            <div className="my-3 border-t border-dashed border-ink-3" />
-            {line("Request", short(r.receipt.requestHash, 6, 4))}
-            {line("Response", short(r.receipt.responseHash, 6, 4))}
-            <div className="pt-1 text-[10.5px] text-ink-3">hashes only · your words are not on this paper</div>
-            <div className="my-3 border-t border-dashed border-ink-3" />
-            {line("Signed", "ed25519, enclave key")}
-            {r.anchor ? (
-              <>
-                {line("Anchored", "Solana")}
-                {line("Batch", `leaf ${r.anchor.index + 1} of ${r.anchor.count}`)}
-                <a href={`https://solscan.io/tx/${r.anchor.tx}`} target="_blank" rel="noreferrer" className="block break-all text-signal underline">
-                  tx {short(r.anchor.tx, 10, 8)}
-                </a>
-              </>
-            ) : (
-              line("Anchored", "next hour")
-            )}
-            <div className="mt-4">
-              <Barcode hex={r.signature} />
-            </div>
+    <div className="overflow-hidden rounded-[14px] border border-edge bg-[#08090b] shadow-[0_30px_80px_-20px_rgba(0,0,0,.8)]">
+      <div className="grid md:grid-cols-[232px_1fr]">
+        <aside className="hidden border-r border-edge p-4 md:block">
+          <div className="flex items-center justify-between">
+            <span className="flex items-center gap-2 text-sm font-medium">
+              <Mark className="size-4" /> Tinted <span className="text-ink-3">⌄</span>
+            </span>
+            <span className="grid size-7 place-items-center rounded-full border border-edge">
+              <SideIcon d="M7 11.5a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9ZM10.5 10.5 14 14" />
+            </span>
           </div>
-        ) : (
-          <div className="py-10 text-center text-ink-3">printing…</div>
-        )}
+          <div className="mt-6 grid gap-0.5 text-sm">
+            {[
+              ["Private chat", "M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2Z", true],
+              ["Market", "M2.5 13.5h11M4.5 11V7M8 11V4M11.5 11V8.5", false],
+              ["Receipts", "M4 2.5h8v11l-2-1-2 1-2-1-2 1ZM6 6h4M6 8.5h4", false],
+              ["API keys", "M6 9.5a3 3 0 1 1 2.1-.9L13.5 14M11 11.5l1.5-1.5", false],
+              ["Anonymous", "M2.5 5.5h11v5h-11ZM6 5.5v5", false],
+            ].map(([l, p, on]) => (
+              <div key={l as string} className={`flex items-center gap-2.5 rounded-md px-2.5 py-1.5 ${on ? "bg-pane-2 text-ink" : "text-ink-2"}`}>
+                <SideIcon d={p as string} />
+                {l as string}
+              </div>
+            ))}
+          </div>
+        </aside>
+        <div className="min-h-[470px]">
+          <div className="flex items-center justify-between border-b border-edge px-5 py-3.5 text-sm">
+            <span className="font-medium">Private chat</span>
+            <span className="flex items-center gap-2 rounded-full border border-edge px-2.5 py-1 text-xs text-ink-2">
+              Gemma 4 31B <span className="size-1.5 rounded-full bg-proof" /> {checks}/5 proved
+            </span>
+          </div>
+          <div className="space-y-5 p-5 sm:p-8">
+            <div className="ml-auto max-w-[80%] rounded-2xl rounded-br-md bg-pane-2 px-4 py-3 text-[15px] leading-relaxed">
+              {typed || " "}
+              {t < d.q.length && <span className="caret ml-px">▍</span>}
+            </div>
+            {after > 0 && (
+              <div className="rise max-w-xl rounded-xl border border-edge">
+                <div className="flex justify-between border-b border-edge px-4 py-2.5 text-xs text-ink-3">
+                  <span>Inspection before sending</span>
+                  <span>{checks === 5 ? "passed · sent sealed" : "checking…"}</span>
+                </div>
+                {STEPS.map(([k, v, ms], n) => (
+                  <div key={k} className={`flex items-center gap-3 px-4 py-2 text-[13px] transition ${n < checks ? "opacity-100" : "opacity-30"}`}>
+                    <Check className={n < checks ? "text-proof" : "text-ink-3"} />
+                    <span className="w-24 shrink-0">{k}</span>
+                    <span className="truncate text-ink-3">{v}</span>
+                    <span className="ml-auto font-mono text-[11px] text-ink-3">{n < checks ? ms : ""}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {answer && <p className="max-w-2xl text-[15px] leading-relaxed text-ink-2">{answer}</p>}
+            {done && (
+              <div className="rise max-w-2xl divide-y divide-edge border-t border-edge text-[13px]">
+                <div className="flex items-center gap-3 py-2.5">
+                  <SideIcon d="M4 2.5h8v11l-2-1-2 1-2-1-2 1ZM6 6h4M6 8.5h4" />
+                  <span>Receipt</span>
+                  <span className="text-ink-3">signed in the enclave</span>
+                  <span className="ml-auto font-mono text-[12px] text-ink-2">rcpt_38ff…4ddf</span>
+                </div>
+                <div className="flex items-center gap-3 py-2.5">
+                  <SideIcon d="M2.5 8h11M8 2.5v11" />
+                  <span>Anchored</span>
+                  <span className="text-ink-3">Solana · hourly Merkle root</span>
+                  <span className="ml-auto font-mono text-[12px] text-proof">{live ? `${live} models live` : "✓"}</span>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
-      <div className="zigzag" />
     </div>
   );
 }
 
-/* ---------- the anonymous note, as a ticket stub ---------- */
-
-function Ticket() {
+function Hero({ rows }: { rows: MarketRow[] | null }) {
   return (
-    <div className="flex max-w-3xl border border-ink bg-[#f4f2ec]">
-      <div className="flex-1 p-6 sm:p-8">
-        <div className="flex items-baseline justify-between font-mono text-[11px] text-ink-3 uppercase">
-          <span>Anonymous credit note</span>
-          <span>Groth16 · BN254</span>
+    <section className="relative">
+      <div className={`${W} grid gap-10 pt-28 pb-16 sm:pt-40 lg:grid-cols-2 lg:items-end`}>
+        <h1 className="h-display text-[44px] leading-[1.02] sm:text-[64px]">
+          Private by hardware.
+          <br />
+          Proven every call.
+        </h1>
+        <div className="lg:text-right">
+          <p className="text-lg text-ink-2 lg:ml-auto lg:max-w-sm">Every model runs in a sealed enclave. Tinted inspects the proof before your prompt leaves.</p>
+          <button onClick={() => go("credits")} className="mt-6 inline-flex items-center gap-2 rounded-full border border-signal/30 bg-signal/[0.06] px-4 py-2 text-[15px] text-ink transition hover:border-signal/60">
+            <Mark className="size-4" tone="#6fd6c4" /> Introducing anonymous credits <span className="text-ink-2">→</span>
+          </button>
         </div>
-        <div className="condensed mt-4 text-[clamp(64px,11vw,128px)] leading-[0.8]">$50</div>
-        <div className="mt-4 max-w-sm text-ink-2">Pays for any model on the market. Redeemed with a zero-knowledge proof that it was bought, never which purchase it was.</div>
-        <div className="mt-5 font-mono text-[11px] text-ink-3 uppercase">Admit one private key · non-linkable · spend once</div>
       </div>
-      <div className="perf bg-transparent" />
-      <div className="w-24 shrink-0 border-l border-dashed border-ink p-3 sm:w-36 sm:p-4">
-        <div className="font-mono text-[10px] text-ink-3 uppercase">Keep this half</div>
-        <div className="mt-3 font-mono text-[10px] leading-snug break-all text-ink-2">tinted-note-v1-50-0c98203866…</div>
-        <div className="condensed mt-4 text-3xl text-signal [writing-mode:vertical-rl]">STUB</div>
+      <div className="relative">
+        <div className="pointer-events-none absolute inset-x-3 top-1/3 bottom-0 rounded-b-[20px] bg-[radial-gradient(ellipse_70%_90%_at_50%_100%,rgba(70,170,180,.38),rgba(40,70,120,.18)_45%,transparent_75%)]" />
+        <div className={`${W} relative pb-12`}>
+          <AppMock rows={rows} />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ---------- names ---------- */
+
+const NAMES = ["Tinfoil", "Phala", "NEAR AI", "Privatemode", "Fortanix", "Gemma", "Llama", "DeepSeek", "Qwen", "GPT-OSS", "GLM", "Kimi", "Mistral"];
+
+function Names() {
+  const line = [...NAMES, ...NAMES];
+  return (
+    <div className="border-b border-edge">
+      <div className={`${W} flex items-center gap-8 py-14`}>
+        <span className="hidden shrink-0 rounded-md border border-edge px-3 py-1.5 text-sm text-ink-2 sm:block">Private models from every enclave provider</span>
+        <div className="relative overflow-hidden [mask-image:linear-gradient(90deg,transparent,#000_10%,#000_90%,transparent)]">
+          <div className="marquee flex w-max gap-14 text-xl font-semibold tracking-[-0.02em] text-ink/85 whitespace-nowrap">
+            {line.map((n, k) => (
+              <span key={k} className="flex items-center gap-2.5">
+                <Mark className="size-4 opacity-60" /> {n}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------- market panel ---------- */
+
+function MarketPanel({ rows }: { rows: MarketRow[] | null }) {
+  const ok = useMemo(() => (rows ?? []).filter((r) => r.routable).sort((a, b) => a.outputPerM - b.outputPerM), [rows]);
+  const [sel, setSel] = useState<string | null>(null);
+  const [budget, setBudget] = useState(10);
+  const cur = ok.find((r) => r.id === sel) ?? ok.find((r) => r.id.includes("gemma")) ?? ok[0];
+  const max = Math.max(...ok.map((r) => r.outputPerM), 1);
+  const last = rows?.map((r) => r.checkedAt).filter(Boolean).sort().at(-1);
+  // A typical message: ~1,500 tokens in (with history), ~400 out.
+  const perMsg = cur ? (1500 * cur.inputPerM + 400 * cur.outputPerM) / 1e6 : 0;
+
+  return (
+    <div className="overflow-hidden rounded-[14px] border border-edge bg-pane">
+      <div className="flex items-center justify-between border-b border-edge px-5 py-3.5 text-sm">
+        <span className="font-medium">Market</span>
+        <span className="text-ink-3">Inspected {ago(last)}</span>
+      </div>
+      <div className="grid md:grid-cols-[1.4fr_1fr]">
+        <div className="border-edge md:border-r">
+          <div className="flex justify-between px-5 pt-4 pb-2 text-xs text-ink-3">
+            <span>Output price · per 1M tokens</span>
+            <span>Proofs</span>
+          </div>
+          <div className="max-h-[420px] overflow-y-auto px-2 pb-3">
+            {ok.map((r) => {
+              const on = cur?.id === r.id;
+              const n = CLAIMS.filter((c) => r.claims?.[c] === "verified").length;
+              return (
+                <button key={r.id} onClick={() => setSel(r.id)} className={`grid w-full grid-cols-[64px_1fr_44px] items-center gap-3 rounded-md px-3 py-2 text-left text-sm transition ${on ? "bg-pane-2 shadow-[inset_2px_0_0_#6fd6c4]" : "hover:bg-pane-2/50"}`}>
+                  <span className={`font-mono text-[13px] ${on ? "text-ink" : "text-ink-2"}`}>{usd(r.outputPerM)}</span>
+                  <span className="min-w-0">
+                    <span className={`block truncate ${on ? "text-ink" : "text-ink-2"}`}>{r.name}</span>
+                    <span className="mt-1 block h-1 rounded-full bg-edge">
+                      <span className={`block h-full rounded-full ${on ? "bg-signal shadow-[0_0_10px_rgba(111,214,196,.7)]" : "bg-ink-3/50"}`} style={{ width: `${Math.max(4, (r.outputPerM / max) * 100)}%` }} />
+                    </span>
+                  </span>
+                  <span className={`text-right font-mono text-[12px] ${n === 5 ? "text-proof" : "text-ink-3"}`}>{n}/5</span>
+                </button>
+              );
+            })}
+            {!rows && <div className="px-3 py-6 text-sm text-ink-3">Reading the market…</div>}
+          </div>
+        </div>
+        {cur && (
+          <div className="flex flex-col p-6">
+            <div className="text-sm text-ink-3">Selected</div>
+            <div className="mt-1 text-lg font-medium">{cur.name}</div>
+            <div className="font-mono text-xs text-ink-3">{cur.id}</div>
+            <div className="mt-5 flex items-baseline gap-2">
+              <span className="h-display text-4xl">{usd(cur.outputPerM)}</span>
+              <span className="text-sm text-ink-3">/ 1M out · {usd(cur.inputPerM)} in</span>
+            </div>
+            <div className="mt-6 grid gap-2 text-sm">
+              {CLAIMS.map((c) => (
+                <div key={c} className="flex items-center gap-2.5">
+                  <span className={`size-1.5 rounded-full ${cur.claims?.[c] === "verified" ? "bg-proof" : cur.claims?.[c] === "provider" ? "bg-claim" : "bg-ink-3"}`} />
+                  <span className="text-ink-2">{CLAIM_LABEL[c]}</span>
+                  <span className="ml-auto text-ink-3">{cur.claims?.[c] === "verified" ? "proved" : cur.claims?.[c] === "provider" ? "provider's word" : "—"}</span>
+                </div>
+              ))}
+            </div>
+            <div className="mt-auto pt-8">
+              <div className="text-xs text-ink-3">You pay</div>
+              <div className="mt-2 flex flex-wrap items-center gap-3">
+                <label className="flex items-center gap-2 rounded-md border border-edge bg-night px-3 py-2">
+                  <span className="text-ink-3">$</span>
+                  <input type="number" min={1} value={budget} onChange={(e) => setBudget(Math.max(0, Number(e.target.value)))} className="w-16 bg-transparent outline-none" />
+                  <span className="text-xs text-ink-3">USDC</span>
+                </label>
+                <button onClick={() => go("chat", cur.id)} className="rounded-full bg-ink px-4 py-2 text-sm font-medium text-night hover:bg-white">
+                  Chat with it
+                </button>
+              </div>
+              <div className="mt-3 text-sm text-ink-2">≈ {perMsg ? Math.floor(budget / perMsg).toLocaleString() : "…"} messages</div>
+            </div>
+          </div>
+        )}
+      </div>
+      <div className="border-t border-edge px-5 py-3 text-xs text-ink-3">Only models that passed inspection in the last 10 minutes are listed. Prices include Tinted's fee.</div>
+    </div>
+  );
+}
+
+/* ---------- line drawings ---------- */
+
+function useIso(S: number, ox: number, oy: number) {
+  const p = (x: number, y: number, z: number) => [ox + (x - y) * 0.866 * S, oy + (x + y) * 0.5 * S - z * S] as const;
+  const poly = (pts: [number, number, number][]) => pts.map((q) => p(...q).join(",")).join(" ");
+  const box = (x: number, y: number, z: number, w: number, d: number, h: number, key: string, accent = false) => (
+    <g key={key} stroke={accent ? "#c9cdd3" : "#7d828b"} strokeWidth={1.15} strokeLinejoin="round" fill="#040405">
+      <polygon points={poly([[x, y + d, z], [x + w, y + d, z], [x + w, y + d, z + h], [x, y + d, z + h]])} />
+      <polygon points={poly([[x + w, y, z], [x + w, y + d, z], [x + w, y + d, z + h], [x + w, y, z + h]])} />
+      <polygon points={poly([[x, y, z + h], [x + w, y, z + h], [x + w, y + d, z + h], [x, y + d, z + h]])} />
+    </g>
+  );
+  const line = (a: [number, number, number], b: [number, number, number], key: string, dash?: string) => {
+    const [x1, y1] = p(...a);
+    const [x2, y2] = p(...b);
+    return <line key={key} x1={x1} y1={y1} x2={x2} y2={y2} stroke="#7d828b" strokeWidth={1.15} strokeDasharray={dash} />;
+  };
+  return { p, poly, box, line };
+}
+
+function DrawEnclave() {
+  const { box, line } = useIso(15, 120, 40);
+  return (
+    <svg viewBox="0 0 240 170" className="h-40 w-full">
+      {Array.from({ length: 7 }, (_, k) => line([0.6 + k, 7, 0.25], [0.6 + k, 7.9, -0.1], "a" + k))}
+      {Array.from({ length: 7 }, (_, k) => line([7, 0.6 + k, 0.25], [7.9, 0.6 + k, -0.1], "b" + k))}
+      {box(0, 0, 0, 7, 7, 0.55, "base")}
+      {box(1.6, 1.6, 0.55, 3.8, 3.8, 0.45, "die", true)}
+      {box(2.6, 2.6, 1, 1.8, 1.8, 0.9, "lock")}
+    </svg>
+  );
+}
+function DrawLedger() {
+  const { box, line } = useIso(15, 120, 64);
+  return (
+    <svg viewBox="0 0 240 170" className="h-40 w-full">
+      {line([3, 3, 0.6], [3, 3, 1.4], "l1")}
+      {line([3, 3, 2], [3, 3, 2.8], "l2")}
+      {box(0.5, 0.5, 0, 5, 5, 0.6, "b1")}
+      {box(0.5, 0.5, 1.4, 5, 5, 0.6, "b2")}
+      {box(0.5, 0.5, 2.8, 5, 5, 0.6, "b3", true)}
+      {line([1.6, 1.6, 3.42], [4.4, 1.6, 3.42], "t1", "3 3")}
+      {line([1.6, 2.6, 3.42], [4.4, 2.6, 3.42], "t2", "3 3")}
+    </svg>
+  );
+}
+function DrawNote() {
+  const { box, line, p } = useIso(15, 110, 58);
+  const [cx, cy] = p(6.6, 2, 0.32);
+  return (
+    <svg viewBox="0 0 240 170" className="h-40 w-full">
+      {box(0, 0, 0, 8, 4, 0.3, "card")}
+      {line([5.6, 0, 0.3], [5.6, 4, 0.3], "perf", "2 4")}
+      <ellipse cx={cx} cy={cy} rx={9} ry={5} fill="none" stroke="#c9cdd3" strokeWidth={1.15} />
+      {line([1, 1, 0.3], [4.4, 1, 0.3], "x1")}
+      {line([1, 2, 0.3], [3.2, 2, 0.3], "x2")}
+      {box(1.4, 5.4, 0, 3, 3, 0.3, "card2")}
+    </svg>
+  );
+}
+
+function Drawings() {
+  const items: [string, ReactNode, string, string][] = [
+    ["/enclave", <DrawEnclave />, "Sealed in hardware", "Models run inside Intel TDX, AMD SEV-SNP and NVIDIA confidential GPUs."],
+    ["/receipts", <DrawLedger />, "Receipts on Solana", "Every response is signed in the enclave and anchored every hour."],
+    ["/anonymous", <DrawNote />, "Pay without a trail", "Buy a note with USDC, spend it with a zero-knowledge proof."],
+  ];
+  return (
+    <div className="grid border-y border-edge md:grid-cols-3">
+      {items.map(([path, art, t, d], k) => (
+        <Reveal key={path} delay={k * 80} className={`px-0 py-10 md:px-8 ${k ? "border-t border-edge md:border-t-0 md:border-l" : "md:pl-0"}`}>
+          <div className="font-mono text-[13px] text-ink-3">{path}</div>
+          <div className="my-10">{art}</div>
+          <div className="font-medium">{t}</div>
+          <p className="mt-2 max-w-xs text-ink-2">{d}</p>
+        </Reveal>
+      ))}
+    </div>
+  );
+}
+
+/* ---------- inspection heatmap ---------- */
+
+function Heatmap({ rows }: { rows: MarketRow[] | null }) {
+  const tick = useTick(450);
+  const ok = (rows ?? []).filter((r) => r.routable !== false && r.claims).slice(0, 18);
+  const col = ok.length ? tick % (ok.length + 6) : -1;
+  const last = rows?.map((r) => r.checkedAt).filter(Boolean).sort().at(-1);
+  useTick(1000);
+  const next = last ? Math.max(0, 600 - Math.round((Date.now() - Date.parse(last)) / 1000)) : null;
+  return (
+    <div className="relative">
+      <div className="overflow-hidden rounded-[14px] border border-edge bg-pane/60 lg:w-[74%]">
+        <div className="flex items-center gap-3 border-b border-edge px-5 py-3.5 text-sm">
+          <span className="font-medium">Inspections</span>
+          <span className="rounded-md border border-edge px-2 py-0.5 text-xs text-ink-2">Every model × every proof</span>
+        </div>
+        <div className="overflow-x-auto p-5">
+          <div className="grid w-max gap-[7px]" style={{ gridTemplateColumns: `92px repeat(${Math.max(ok.length, 1)}, 34px)` }}>
+            {CLAIMS.map((c) => (
+              <div key={c} className="contents">
+                <span className="self-center text-xs text-ink-3">{CLAIM_LABEL[c]}</span>
+                {ok.map((r, k) => {
+                  const s = r.claims![c];
+                  const hot = k === col;
+                  return (
+                    <span
+                      key={r.id}
+                      title={`${r.name} · ${CLAIM_LABEL[c]}: ${s}`}
+                      className={`size-[34px] rounded-[7px] transition-all duration-300 ${s === "verified" ? (hot ? "bg-signal shadow-[0_0_16px_rgba(111,214,196,.8)]" : "bg-signal/45") : s === "provider" ? (hot ? "bg-claim" : "bg-claim/35") : "bg-fail/40"}`}
+                      style={s === "verified" && !hot ? { opacity: 0.55 + ((k * 7 + c.length) % 5) * 0.09 } : undefined}
+                    />
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+          <div className="mt-4 flex gap-5 text-xs text-ink-3">
+            <span className="flex items-center gap-1.5">
+              <span className="size-2.5 rounded-sm bg-signal/70" /> proved by Tinted
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="size-2.5 rounded-sm bg-claim/60" /> provider's word
+            </span>
+          </div>
+        </div>
+      </div>
+      <div className="mt-4 rounded-[14px] border border-edge bg-pane p-5 shadow-[0_20px_60px_-10px_rgba(0,0,0,.9)] lg:absolute lg:top-1/2 lg:right-0 lg:mt-0 lg:w-[340px] lg:-translate-y-1/2">
+        <div className="flex items-center justify-between text-sm">
+          <span className="font-medium">Next inspection</span>
+          <span className="rounded-md border border-edge px-2 py-0.5 text-xs text-ink-2">every 10 min</span>
+        </div>
+        <div className="mt-4 flex items-baseline gap-2">
+          <span className="h-display font-mono text-4xl">{next === null ? "…" : next === 0 ? "now" : `${Math.floor(next / 60)}:${String(next % 60).padStart(2, "0")}`}</span>
+          <span className="text-sm text-ink-3">last {ago(last)}</span>
+        </div>
+        <div className="mt-5 flex h-12 items-end gap-[3px]">
+          {ok.map((r, k) => {
+            const n = CLAIMS.filter((c) => r.claims?.[c] === "verified").length;
+            return <span key={r.id} className={`flex-1 rounded-[2px] ${k === ok.length - 1 ? "bg-signal" : "bg-ink-3/40"}`} style={{ height: `${20 + n * 16}%` }} />;
+          })}
+        </div>
+        <div className="mt-5 flex justify-end gap-2">
+          <button onClick={() => go("verify")} className="rounded-full border border-edge bg-pane-2 px-3 py-1.5 text-sm hover:border-ink-3">
+            Verify
+          </button>
+          <button onClick={() => go("market")} className="rounded-full bg-ink px-3 py-1.5 text-sm font-medium text-night hover:bg-white">
+            Market
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const GUARANTEES: [string, string][] = [
+  ["Fails closed", "A model whose proof fails is taken off the market. Nothing is sent to it until it passes again."],
+  ["Weights pinned", "Where the provider allows it, the exact model weights are pinned by hash in the measured image."],
+  ["TLS ends in the enclave", "api.tinted.market's certificate key is derived inside Tinted's enclave, with evidence you can fetch."],
+  ["Nothing logged", "Prompts and answers are never stored. Receipts hold hashes, not words."],
+];
+
+function Guarantees() {
+  const [open, setOpen] = useState<number | null>(null);
+  return (
+    <Reveal className="grid gap-6 border-t border-edge py-10 lg:grid-cols-2">
+      <span className="text-ink-2">Guarantees</span>
+      <div>
+        <div className="grid gap-x-10 gap-y-3 sm:grid-cols-2">
+          {GUARANTEES.map(([t], k) => (
+            <button key={t} onClick={() => setOpen(open === k ? null : k)} className="flex items-center gap-2 text-left text-ink hover:text-white">
+              {t} <span className={`text-ink-3 transition ${open === k ? "rotate-45" : ""}`}>+</span>
+            </button>
+          ))}
+        </div>
+        {open !== null && <p className="rise mt-5 max-w-lg text-ink-2">{GUARANTEES[open][1]}</p>}
+      </div>
+    </Reveal>
+  );
+}
+
+/* ---------- one key ---------- */
+
+const MONO: Record<string, string> = { "gpt-oss": "OSS", deepseek: "DS", qwen: "QW", llama: "LL", gemma: "GM", kimi: "KM", glm: "GLM", mistral: "MS", voxtral: "VX", nomic: "NM", hermes: "HM", minimax: "MM" };
+const family = (r: MarketRow) => {
+  const n = (r.model.split("/").pop() ?? r.model).toLowerCase();
+  return n.match(/^(gpt-oss|deepseek|qwen|llama|gemma|kimi|glm|mistral|voxtral|nomic|hermes|minimax)/)?.[1] ?? n.split(/[-.\d]/)[0];
+};
+
+function KeyWall({ rows }: { rows: MarketRow[] | null }) {
+  const tick = useTick(1600);
+  const fams = useMemo(() => {
+    const m = new Map<string, MarketRow>();
+    for (const r of rows ?? []) if (r.routable && !m.has(family(r))) m.set(family(r), r);
+    return [...m.entries()];
+  }, [rows]);
+  const tiles = Array.from({ length: 18 }, (_, k) => fams[k] ?? null);
+  const active = fams.length ? tick % fams.length : -1;
+  const cur = active >= 0 ? fams[active][1] : null;
+  return (
+    <div className="relative overflow-hidden rounded-[14px] border border-edge bg-[radial-gradient(ellipse_at_20%_30%,rgba(111,214,196,.07),transparent_55%)] px-6 py-12 sm:px-16 lg:px-[18%]">
+      <div className="grid grid-cols-4 gap-3 sm:grid-cols-6 lg:w-[86%]">
+        {tiles.map((t, k) => (
+          <div
+            key={k}
+            className={`grid aspect-square place-items-center rounded-[14px] border transition duration-500 ${t ? (k === active ? "border-signal/60 bg-[#0b1516] shadow-[0_0_28px_-4px_rgba(111,214,196,.55)]" : "border-edge bg-pane") : "border-edge/50 bg-pane/40"}`}
+            style={!t ? { opacity: Math.max(0.15, 0.6 - (k - fams.length) * 0.06) } : undefined}
+          >
+            {t && <span className={`font-mono text-lg ${k === active ? "text-ink" : "text-ink-3"}`}>{MONO[t[0]] ?? t[0].slice(0, 2).toUpperCase()}</span>}
+          </div>
+        ))}
+      </div>
+      <div className="relative mt-8 rounded-[12px] border border-edge bg-pane shadow-[0_20px_60px_-10px_rgba(0,0,0,.9)] lg:absolute lg:top-[38%] lg:right-6 lg:mt-0 lg:w-[460px]">
+        <div className="flex items-center justify-between border-b border-edge px-4 py-3 text-sm">
+          <span className="flex items-center gap-2 font-medium">
+            <span className="font-mono text-ink-3">›_</span> {cur ? cur.name : "Your app"}
+          </span>
+          <span className="flex items-center gap-1.5 rounded-full border border-edge px-2 py-0.5 text-xs text-ink-2">
+            <span className="size-1.5 rounded-full bg-proof" /> Connected
+          </span>
+        </div>
+        <pre className="overflow-x-auto px-4 py-4 font-mono text-[12.5px] leading-[1.9] text-ink">
+          <span className="text-ink-3">export</span> OPENAI_BASE_URL={GATEWAY}/v1{"\n"}
+          <span className="text-ink-3">export</span> OPENAI_API_KEY=tnt_••••7Q2{"\n"}
+          <span className="text-signal">$</span> python app.py <span className="caret bg-signal text-signal">▍</span>
+        </pre>
+      </div>
+    </div>
+  );
+}
+
+/* ---------- anchors, read from Solana itself ---------- */
+
+interface AnchorRow {
+  sig: string;
+  time: number | null;
+  count: number;
+  root: string;
+}
+
+function useAnchors() {
+  const [a, setA] = useState<AnchorRow[] | null>(null);
+  useEffect(() => {
+    api.anchors().then(
+      (r) => setA(r.anchors.map((x) => ({ sig: x.tx, time: Date.parse(x.at) / 1000, count: x.count, root: x.root }))),
+      () => setA([]),
+    );
+  }, []);
+  return a;
+}
+
+function Anchors() {
+  const a = useAnchors();
+  const shown = (a ?? []).slice(0, 4);
+  return (
+    <div>
+      <div className="relative grid gap-10 md:grid-cols-4">
+        <div className="absolute top-[5px] right-0 left-0 hidden h-px bg-edge md:block" />
+        {(shown.length ? shown : [null, null, null, null]).map((r, k) => (
+          <div key={k} className="relative">
+            <span className={`relative block size-[11px] rounded-full border-2 border-night ${k === 0 && r ? "bg-signal shadow-[0_0_10px_rgba(111,214,196,.8)]" : "bg-edge"}`} />
+            {r ? (
+              <a href={`https://solscan.io/tx/${r.sig}`} target="_blank" rel="noreferrer" className="group mt-12 block">
+                <div className="font-medium group-hover:text-white">Batch {(a?.length ?? 0) - k}</div>
+                <div className="mt-1.5 text-ink-2">
+                  {r.count} receipt{r.count === 1 ? "" : "s"} under root {r.root.slice(0, 8)}…
+                </div>
+                <div className="mt-4 font-mono text-[13px] text-ink-3 uppercase">{r.time ? new Date(r.time * 1000).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "pending"}</div>
+              </a>
+            ) : (
+              <div className="mt-12 text-ink-3">{a === null ? "Reading Solana…" : k === 0 ? "No batch yet this hour" : ""}</div>
+            )}
+          </div>
+        ))}
+      </div>
+      <a href={`https://solscan.io/account/${LOG_KEY}`} target="_blank" rel="noreferrer" className="mt-12 inline-block text-ink-2 transition hover:text-ink">
+        View the log on Solscan <span className="ml-1">→</span>
+      </a>
+    </div>
+  );
+}
+
+/* ---------- cards ---------- */
+
+function Shapes({ tone }: { tone: string }) {
+  return (
+    <svg viewBox="0 0 400 400" className="h-full w-auto" aria-hidden>
+      <path d="M0 0h190a10 10 0 0 1 10 10v88L0 200Z" fill={tone} />
+      <path d="M200 102V190a10 10 0 0 1-10 10H8Z" fill={tone} opacity=".55" />
+      <circle cx="310" cy="100" r="90" fill={tone} />
+      <path d="M210 210h180v180a0 0 0 0 1 0 0C290 390 210 310 210 210Z" fill={tone} />
+      <path d="M0 210c110 0 190 80 190 190H0Z" fill={tone} opacity=".7" />
+    </svg>
+  );
+}
+
+function Cards({ rows }: { rows: MarketRow[] | null }) {
+  const [notes, setNotes] = useState<number | null>(null);
+  useEffect(() => {
+    api.credits().then((c) => setNotes(c.size), () => undefined);
+  }, []);
+  const live = rows?.filter((r) => r.routable).length;
+  return (
+    <div>
+      <div className="grid gap-2 lg:grid-cols-[2fr_1fr]">
+        <Reveal className="relative flex min-h-[460px] flex-col overflow-hidden rounded-[10px] bg-[linear-gradient(135deg,#a6e3d6,#62b7c4)] p-8 text-night">
+          <h3 className="relative z-10 max-w-sm text-[32px] leading-[1.12] tracking-[-0.02em]">Every call is sealed in hardware before it's sent.</h3>
+          <div className="absolute right-0 bottom-0 h-[80%] opacity-60">
+            <Shapes tone="#d3f1ea" />
+          </div>
+          <div className="relative z-10 mt-auto flex items-center gap-4">
+            <Mark className="size-6" tone="#040405" />
+            <span className="h-8 w-px bg-night/20" />
+            <div className="text-sm">
+              <div className="font-medium">{live ?? "…"} private models</div>
+              <div className="opacity-70">Passing every proof right now</div>
+            </div>
+          </div>
+        </Reveal>
+        <Reveal delay={80} className="relative flex min-h-[460px] flex-col overflow-hidden rounded-[10px] bg-[linear-gradient(160deg,#d4dbff,#8b9cf2)] p-8 text-night">
+          <h3 className="relative z-10 text-[32px] leading-[1.12] tracking-[-0.02em]">Notes pay for calls without a trail.</h3>
+          <div className="relative z-10 mt-auto flex items-center gap-4">
+            <Mark className="size-6" tone="#040405" />
+            <span className="h-8 w-px bg-night/20" />
+            <div className="text-sm">
+              <div className="font-medium">{notes ?? "…"} notes in the tree</div>
+              <div className="opacity-70">Zero-knowledge, Groth16</div>
+            </div>
+          </div>
+        </Reveal>
+      </div>
+      <div className="mt-8 flex justify-between text-ink-2">
+        <span>
+          Tinted serves <b className="font-medium text-ink">{live ?? "…"}</b> private models, inspected every 10 minutes.
+        </span>
+        <button onClick={() => go("market")} className="transition hover:text-ink">
+          Browse models <span className="ml-1">→</span>
+        </button>
       </div>
     </div>
   );
@@ -421,100 +676,75 @@ function Ticket() {
 
 /* ---------- page ---------- */
 
-const FAQ: [string, string][] = [
-  ["Can Tinted read my prompts?", "No. Your connection is encrypted straight into our enclave (the certificate key was made in there), and from there only to provider enclaves whose stamps just came back PASS. The code is open source and the hardware proves which build is running."],
-  ["What does CLAIMED mean?", "The provider says it, but we couldn't prove it from vendor-signed evidence. It's usually the exact model weights. You can require proved weights on any call."],
-  ["What if a proof fails?", "The model leaves the market until it passes again. Nothing is sent to it in the meantime."],
-  ["Do I need an account?", "No email, no wallet connect, no KYC. A key is created in one click; pay with USDC on Solana, or anonymously with a note."],
-];
-
 export function Home() {
   const rows = useMarket();
   return (
     <div>
       <Hero rows={rows} />
-      <Intro />
-      <Filmstrip rows={rows} />
+      <Names />
 
-      <Section n="02" title={<>Who can read it.</>} aside={<p className="max-w-xs font-mono text-[11px] text-ink-3 uppercase">Film samples · visible light transmission by who's looking</p>}>
-        <SwatchBook />
-      </Section>
+      <section className={`${W} py-32`}>
+        <Split title="A market for private inference.">Confidential-computing providers list their models. Tinted inspects each one and routes only to those that pass, cheapest first.</Split>
+        <Reveal className="mt-16">
+          <MarketPanel rows={rows} />
+        </Reveal>
+      </section>
 
-      <Section n="03" title={<>Inspected before every call.</>} aside={<p className="max-w-xs text-ink-2">A real report, read live from the gateway. Pick any model on the market.</p>}>
-        <Inspection rows={rows} />
-      </Section>
-
-      <Section
-        n="04"
-        title="Price list."
-        aside={
-          <button onClick={() => go("market")} className="border-b border-ink font-mono text-[12px] uppercase hover:text-signal">
-            Full market →
-          </button>
-        }
-      >
-        <PriceList rows={rows} />
-        <p className="mt-4 font-mono text-[11px] text-ink-3 uppercase">Per million tokens · output in bold · only models that passed inspection are listed</p>
-      </Section>
-
-      <Section n="05" title={<>Every call leaves a receipt.</>}>
-        <div className="grid items-center gap-12 md:grid-cols-[1fr_auto]">
-          <div className="max-w-lg space-y-4 text-lg text-ink-2">
-            <p>Signed by a key that only exists inside Tinted's enclave. It records what was proved and what was charged, and hashes of what was said, never the words.</p>
-            <p>Every hour the receipts are folded into one Merkle root and written to Solana, so no one can quietly rewrite them later, including us.</p>
-            <p className="font-mono text-[12px] text-ink-3 uppercase">This one is real. It was printed from the live gateway just now.</p>
-            <button onClick={() => go("verify", SAMPLE_RECEIPT)} className="border-b border-ink font-mono text-[12px] text-ink uppercase hover:text-signal">
-              Check its signature in your browser →
-            </button>
-          </div>
-          <ReceiptPaper />
-        </div>
-      </Section>
-
-      <Section n="06" title={<>Pay without a trail.</>}>
-        <div className="grid items-center gap-10 lg:grid-cols-[1fr_auto]">
-          <Ticket />
-          <div className="max-w-xs space-y-4 text-ink-2">
-            <p>Buy a note from any wallet. Redeem it later, from anywhere, with a proof that reveals nothing about which note it was.</p>
-            <button onClick={() => go("credits")} className="bg-ink px-5 py-3 font-semibold tracking-wide text-night uppercase hover:bg-signal">
-              Buy a note →
-            </button>
-          </div>
-        </div>
-      </Section>
-
-      <section className="film -mx-4 px-4 py-16 sm:py-24">
-        <div className="grid gap-10 lg:grid-cols-[1fr_1.4fr] lg:items-end">
-          <div>
-            <div className="font-mono text-[12px] text-white/50">§ 07</div>
-            <h2 className="condensed mt-3 text-4xl leading-[0.92] uppercase sm:text-6xl">The whole migration is one line.</h2>
-          </div>
-          <div className="font-mono text-[clamp(12px,1.5vw,17px)] leading-loose">
-            <div className="text-white/35 line-through decoration-signal decoration-2">− base_url = "https://api.openai.com/v1"</div>
-            <div>
-              + base_url = "<span className="text-signal">{GATEWAY}/v1</span>"
-            </div>
-            <div className="mt-6 text-[12px] text-white/50">
-              # every response comes back with x-tinted-verified and x-tinted-receipt
-              <br /># agents: read tinted.market/llms.txt
-            </div>
-          </div>
+      <section className={`${W} pt-16 pb-24`}>
+        <Reveal>
+          <p className="h-display max-w-5xl text-4xl leading-[1.1] sm:text-[52px]">
+            A gateway that can't read what it carries. <span className="text-ink-3">The hardware proves it, every answer is signed, and the receipts live on Solana.</span>
+          </p>
+        </Reveal>
+        <div className="mt-20">
+          <Drawings />
         </div>
       </section>
 
-      <Section n="08" title="Fair questions.">
-        <div className="grid gap-x-16 gap-y-10 md:grid-cols-2">
-          {FAQ.map(([q, a], k) => (
-            <div key={q} className="grid grid-cols-[36px_1fr] gap-2">
-              <span className="font-mono text-[12px] text-ink-3">Q{k + 1}</span>
-              <div>
-                <div className="text-xl font-semibold">{q}</div>
-                <p className="mt-2 text-ink-2">{a}</p>
-              </div>
-            </div>
-          ))}
+      <section className={`${W} py-24`}>
+        <Heatmap rows={rows} />
+        <div className="mt-24">
+          <Guarantees />
         </div>
-      </Section>
+      </section>
+
+      <section className={`${W} border-t border-edge py-32`}>
+        <Split title="One key. Every private model." link={["Read the quickstart", () => go("docs")]}>
+          Point any OpenAI-compatible app at Tinted. Each response comes back with the proofs it passed and a receipt you can check.
+        </Split>
+        <Reveal className="mt-16">
+          <KeyWall rows={rows} />
+        </Reveal>
+      </section>
+
+      <section className={`${W} border-t border-edge py-32`}>
+        <Reveal>
+          <h2 className="h-display mb-16 text-4xl sm:text-5xl">Anchors</h2>
+        </Reveal>
+        <Anchors />
+      </section>
+
+      <section className={`${W} pb-24`}>
+        <Cards rows={rows} />
+      </section>
+
+      <section className={`${W} py-32 text-center`}>
+        <Reveal>
+          <h2 className="h-display text-[44px] leading-[1.02] sm:text-[72px]">
+            Say anything.
+            <br />
+            We can't read it.
+          </h2>
+          <div className="mt-10 flex flex-wrap justify-center gap-3">
+            <button onClick={() => go("chat")} className="rounded-full bg-ink px-6 py-3 font-medium text-night hover:bg-white">
+              Open a private chat
+            </button>
+            <button onClick={() => go("account")} className="rounded-full border border-edge bg-pane-2 px-6 py-3 font-medium hover:border-ink-3">
+              Get an API key
+            </button>
+          </div>
+        </Reveal>
+      </section>
     </div>
   );
 }

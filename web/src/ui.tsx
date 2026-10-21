@@ -9,18 +9,13 @@ export const CLAIM_HINT: Record<ClaimName, string> = {
   weights: "The loaded model weights are a pinned, hash-verified artifact.",
   keys: "The keys that encrypt or sign your traffic were created inside the verified enclave.",
 };
-const STATE_STYLE: Record<ClaimState, string> = {
-  verified: "border-proof text-proof",
-  provider: "border-claim text-claim border-dashed",
-  failed: "border-fail text-fail",
-  unknown: "border-edge text-ink-3",
-};
+const STATE_DOT: Record<ClaimState, string> = { verified: "bg-proof", provider: "bg-claim", failed: "bg-fail", unknown: "bg-ink-3" };
 const STATE_WORD: Record<ClaimState, string> = { verified: "proved", provider: "claimed", failed: "failed", unknown: "unchecked" };
 
 export function Badge({ name, state, compact }: { name: ClaimName; state: ClaimState; compact?: boolean }) {
   return (
-    <span title={`${CLAIM_LABEL[name]}: ${STATE_WORD[state]}. ${CLAIM_HINT[name]}`} className={`inline-flex items-center gap-1 border px-1.5 py-[3px] font-mono text-[10px] leading-none font-medium tracking-wide whitespace-nowrap uppercase ${STATE_STYLE[state]}`}>
-      <span>{state === "verified" ? "✓" : state === "provider" ? "~" : state === "failed" ? "✕" : "·"}</span>
+    <span title={`${CLAIM_LABEL[name]}: ${STATE_WORD[state]}. ${CLAIM_HINT[name]}`} className={`inline-flex items-center gap-1.5 rounded-full border border-edge bg-pane-2/60 px-2 py-[3px] text-[11px] leading-none whitespace-nowrap ${state === "verified" ? "text-ink-2" : state === "unknown" ? "text-ink-3" : state === "provider" ? "text-claim" : "text-fail"}`}>
+      <span className={`size-1.5 rounded-full ${STATE_DOT[state]}`} />
       {compact ? CLAIM_LABEL[name].split(" ")[0] : `${CLAIM_LABEL[name]} · ${STATE_WORD[state]}`}
     </span>
   );
@@ -32,21 +27,20 @@ export function Pane({ children, className = "" }: { children: ReactNode; classN
 
 export function H({ kicker, title, children }: { kicker: string; title: ReactNode; children?: ReactNode }) {
   return (
-    <header className="mb-10 border-b border-ink pb-6">
-      <div className="flex items-center gap-2 font-mono text-[11px] tracking-[0.12em] text-ink-2 uppercase">
-        <span className="inline-block size-2.5 bg-signal" />
-        {kicker}
+    <header className="mb-12 grid gap-6 lg:grid-cols-2 lg:items-end">
+      <div>
+        <div className="text-sm text-ink-3">{kicker}</div>
+        <h1 className="h-display mt-2 text-4xl leading-[1.05] sm:text-[56px]">{title}</h1>
       </div>
-      <h1 className="condensed mt-3 text-5xl leading-[0.9] uppercase sm:text-7xl">{title}</h1>
-      {children && <p className="mt-4 max-w-2xl text-lg text-ink-2">{children}</p>}
+      {children && <p className="max-w-xl text-lg leading-relaxed text-ink-2">{children}</p>}
     </header>
   );
 }
 
 export function Button({ children, onClick, disabled, kind = "solid", type = "button" }: { children: ReactNode; onClick?: () => void; disabled?: boolean; kind?: "solid" | "ghost"; type?: "button" | "submit" }) {
-  const k = kind === "solid" ? "bg-ink text-night border border-ink hover:bg-signal hover:border-signal" : "border border-ink text-ink hover:bg-ink hover:text-night";
+  const k = kind === "solid" ? "bg-ink text-night hover:bg-white" : "border border-edge bg-pane-2 text-ink hover:border-ink-3";
   return (
-    <button type={type} onClick={onClick} disabled={disabled} className={`px-4 py-2 text-sm font-semibold tracking-wide uppercase transition disabled:opacity-40 ${k}`}>
+    <button type={type} onClick={onClick} disabled={disabled} className={`rounded-full px-4 py-2 text-sm font-medium transition disabled:opacity-40 ${k}`}>
       {children}
     </button>
   );

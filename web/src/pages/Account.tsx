@@ -50,7 +50,7 @@ function Deposit({ k }: { k: string }) {
       </div>
       <div className="space-y-4 text-sm">
         <p className="text-ink-2">Scan with Phantom, Solflare or Backpack, or open the link on this device. Credits arrive within about a minute.</p>
-        <a href={url!} className="inline-block rounded-md bg-proof px-4 py-2 font-medium text-night">
+        <a href={url!} className="inline-block rounded-full bg-ink px-4 py-2 font-medium text-night hover:bg-white">
           Pay {amount} USDC in wallet
         </a>
         <div>
@@ -157,7 +157,7 @@ export function Account() {
           </div>
           <p className="mt-3 text-sm text-ink-3">Stored only in this browser. Use it anywhere with the base URL from the docs.</p>
           <div className="mt-5 flex gap-2">
-            <a href="#/chat" className="rounded-md bg-proof px-4 py-2 text-sm font-medium text-night">
+            <a href="#/chat" className="rounded-full bg-ink px-4 py-2 text-sm font-medium text-night hover:bg-white">
               Open chat
             </a>
             <Button

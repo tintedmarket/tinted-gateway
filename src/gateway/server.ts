@@ -11,7 +11,7 @@ import { cors } from "hono/cors";
 import { depositCode, depositMemo, pollDeposits, treasury } from "./deposits.ts";
 import { anchorPending } from "./anchor.ts";
 import { addNote, anchorNotes, DENOMS, leaves, redeem, treeState, vkHash } from "./notes.ts";
-import { USDC_MINT } from "./solana.ts";
+import { connection, solanaKeypair, USDC_MINT } from "./solana.ts";
 
 /**
  * Tinted gateway: an OpenAI-compatible API over confidential inference providers. Every request is routed only to an
@@ -130,6 +130,31 @@ app.post("/v1/chat/completions", async (c) => {
 });
 
 /** A receipt: public (hashes and verification results only, no account), with its signature checkable by anyone. */
+/** The receipt log's recent batches: one Solana memo each. */
+app.get("/v1/anchors", async (c) => {
+  const q = await db();
+  const rows = await q<{ tx: string; root: string; count: string; at: string }>(
+    "select anchor->>'tx' as tx, anchor->>'root' as root, anchor->>'count' as count, min(anchor->>'at') as at from receipts where anchor is not null group by 1, 2, 3 order by 4 desc limit 12",
+  );
+  c.header("cache-control", "public, max-age=60");
+  return c.json({ log: solanaKeypair().publicKey.toBase58(), anchors: rows.map((r) => ({ tx: r.tx, root: r.root, count: Number(r.count), at: r.at })) });
+});
+
+/** A Solana transaction's memo and signer, read through the gateway's RPC (public RPCs refuse browsers). Solscan has the same data. */
+const txCache = new Map<string, unknown>();
+app.get("/v1/solana/tx/:sig", async (c) => {
+  const sig = c.req.param("sig");
+  if (!/^[1-9A-HJ-NP-Za-km-z]{64,90}$/.test(sig)) return err(400, "not a transaction signature");
+  if (!txCache.has(sig)) {
+    const tx = await connection().getParsedTransaction(sig, { maxSupportedTransactionVersion: 0, commitment: "confirmed" }).catch(() => null);
+    if (!tx) return err(404, "transaction not found");
+    const memo = tx.transaction.message.instructions.map((i) => ("parsed" in i && typeof i.parsed === "string" ? i.parsed : null)).find(Boolean) ?? null;
+    const signer = tx.transaction.message.accountKeys.find((k) => k.signer)?.pubkey.toBase58() ?? null;
+    txCache.set(sig, { signature: sig, slot: tx.slot, blockTime: tx.blockTime, memo, signer });
+  }
+  return c.json(txCache.get(sig));
+});
+
 app.get("/v1/receipts/:id", async (c) => {
   const q = await db();
   const [r] = await q<{ body: Receipt | string; signature: string; anchor: unknown }>("select body, signature, anchor from receipts where id = $1", [c.req.param("id")]);
