@@ -143,6 +143,6 @@ console.log(`Burned the dev buy (${(Number(held) / 1e6).toLocaleString()} $${arg
 const ca = mint.publicKey.toBase58();
 console.log(`\nCA ${ca}\nhttps://pump.fun/coin/${ca}`);
 // Put the CA on tinted.market: a build-time env var on the Vercel project, then a production deploy.
-execSync(`npx -y vercel env add VITE_TOKEN_MINT production`, { cwd: "web", input: ca, stdio: ["pipe", "inherit", "inherit"] });
+execSync(`npx -y vercel env add VITE_TOKEN_MINT production --type config --value ${ca} --yes`, { cwd: "web", stdio: "inherit" });
 execSync(`npx -y vercel deploy --prod --yes`, { cwd: "web", stdio: "inherit" });
 console.log("CA is on tinted.market.");
