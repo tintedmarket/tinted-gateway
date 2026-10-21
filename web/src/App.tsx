@@ -114,16 +114,6 @@ export function App() {
         )}
       </main>
 
-      <div className="border-t border-edge">
-        <div className="mx-auto flex max-w-[1344px] items-center gap-4 px-6 py-14 text-ink-2">
-          Find us on
-          <a href="https://x.com/tintedmarket" target="_blank" rel="noreferrer" aria-label="Tinted on X" className="grid size-9 place-items-center rounded-full bg-pane-2 text-ink transition hover:bg-edge">
-            <svg viewBox="0 0 24 24" className="size-4" fill="currentColor" aria-hidden>
-              <path d="M17.75 3h3.07l-6.7 7.66L22 21h-6.17l-4.83-6.32L5.47 21H2.4l7.17-8.2L2 3h6.33l4.37 5.77Zm-1.08 16.17h1.7L7.4 4.74H5.58Z" />
-            </svg>
-          </a>
-        </div>
-      </div>
       <footer className="border-t border-edge">
         <div className="mx-auto grid max-w-[1344px] gap-10 px-6 pt-16 pb-10 sm:grid-cols-2 lg:grid-cols-[2fr_1fr_1fr_1fr]">
           <Mark className="size-6" />
