@@ -197,7 +197,7 @@ app.post("/v1/accounts", async (c) => {
   // one wider bucket; the Phala gateway URL still forwards it per client.
   const ip = c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ?? "shared";
   const recent = (signups.get(ip) ?? []).filter((t) => Date.now() - t < 3600_000);
-  if (recent.length >= (ip === "shared" ? 120 : 5)) return err(429, "too many new keys from this address: try again later", "rate_limited");
+  if (recent.length >= (ip === "shared" ? 2000 : 5)) return err(429, "too many new keys from this address: try again later", "rate_limited");
   signups.set(ip, [...recent, Date.now()]);
   return c.json(await createAccount("signup", 0));
 });

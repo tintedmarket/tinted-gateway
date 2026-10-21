@@ -34,6 +34,33 @@ export function Mark({ className = "size-5", tone = "#f5f6f5", shade }: { classN
   );
 }
 
+/** The $TINTED contract address, once launched (set at build time by launch/launch.mts). Renders nothing before. */
+export const TOKEN_MINT = (import.meta.env.VITE_TOKEN_MINT as string | undefined)?.trim() || null;
+export function TokenPill() {
+  const [copied, setCopied] = useState(false);
+  if (!TOKEN_MINT) return null;
+  return (
+    <span className="inline-flex items-center gap-3 rounded-full border border-edge bg-pane px-1.5 py-1.5 pl-3 text-sm">
+      <span className="font-medium">$TINTED</span>
+      <button
+        onClick={() =>
+          void navigator.clipboard.writeText(TOKEN_MINT).then(() => {
+            setCopied(true);
+            setTimeout(() => setCopied(false), 1400);
+          })
+        }
+        className="font-mono text-[12px] text-ink-2 hover:text-ink"
+        title="Copy the contract address"
+      >
+        {copied ? "copied" : `${TOKEN_MINT.slice(0, 4)}…${TOKEN_MINT.slice(-4)}`}
+      </button>
+      <a href={`https://pump.fun/coin/${TOKEN_MINT}`} target="_blank" rel="noreferrer" className="rounded-full bg-pane-2 px-2.5 py-1 text-xs text-ink-2 hover:text-ink">
+        pump.fun ↗
+      </a>
+    </span>
+  );
+}
+
 function Logo() {
   return (
     <a href="#/" className="flex items-center gap-2">
@@ -130,7 +157,10 @@ export function App() {
             </div>
           ))}
         </div>
-        <div className="mx-auto max-w-[1344px] px-6 text-sm text-ink-3">© {new Date().getFullYear()} Tinted</div>
+        <div className="mx-auto flex max-w-[1344px] flex-wrap items-center justify-between gap-4 px-6 text-sm text-ink-3">
+          <span>© {new Date().getFullYear()} Tinted</span>
+          <TokenPill />
+        </div>
         <div className="mx-auto mt-10 flex max-w-[1344px] items-end gap-[3vw] overflow-hidden px-6 select-none" aria-hidden>
           <Mark className="h-[15vw] max-h-[220px] w-auto shrink-0" tone="#111215" />
           <span className="h-display translate-y-[18%] text-[17vw] leading-[0.8] text-[#111215] lg:text-[240px]">Tinted</span>

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { api, CLAIMS, GATEWAY, type MarketRow } from "../api";
 import { BrandIcon, brandOf, CLAIM_LABEL } from "../ui";
-import { go, Mark } from "../App";
+import { go, Mark, TokenPill } from "../App";
 
 /* ---------- shared ---------- */
 
@@ -211,6 +211,9 @@ function Hero({ rows }: { rows: MarketRow[] | null }) {
           <button onClick={() => go("credits")} className="mt-6 inline-flex items-center gap-2 rounded-full border border-signal/30 bg-signal/[0.06] px-4 py-2 text-[15px] text-ink transition hover:border-signal/60">
             <Mark className="size-4" tone="#6fd6c4" /> Introducing anonymous credits <span className="text-ink-2">→</span>
           </button>
+          <div className="mt-3">
+            <TokenPill />
+          </div>
         </div>
       </div>
       <div className="relative">

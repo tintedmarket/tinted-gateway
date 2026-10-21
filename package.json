@@ -28,7 +28,11 @@
     "tinfoil": "^1.2.2"
   },
   "devDependencies": {
+    "@pump-fun/pump-sdk": "^2.0.0",
+    "@solana/spl-token": "^0.4.15",
     "@types/node": "^26.6.5",
+    "bn.js": "^5.2.5",
+    "bs58": "^6.0.0",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2"
   }
