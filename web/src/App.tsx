@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useId, useState } from "react";
 import { Home } from "./pages/Home";
 import { Market } from "./pages/Market";
 import { Chat } from "./pages/Chat";
@@ -18,12 +18,18 @@ function parse(): { route: Route; arg: string } {
 }
 export const go = (route: Route, arg = "") => (location.hash = `/${route}${arg ? "/" + encodeURIComponent(arg) : ""}`);
 
-/** The mark: a pane with its lower half tinted. */
-export function Mark({ className = "size-5", tone = "#f7f8f8" }: { className?: string; tone?: string }) {
+/** The mark: a rounded pane cut on the diagonal, its lower half tinted. */
+export function Mark({ className = "size-5", tone = "#f5f6f5", shade }: { className?: string; tone?: string; shade?: string }) {
+  const id = useId();
   return (
     <svg viewBox="0 0 24 24" className={className} aria-hidden>
-      <path d="M5 3h14a2 2 0 0 1 2 2v6.2L3 19.8V5a2 2 0 0 1 2-2Z" fill={tone} />
-      <path d="M21 13.6V19a2 2 0 0 1-2 2H5.6Z" fill={tone} opacity=".38" />
+      <clipPath id={id}>
+        <rect x="1.5" y="1.5" width="21" height="21" rx="5" />
+      </clipPath>
+      <g clipPath={`url(#${id})`}>
+        <rect x="1.5" y="1.5" width="21" height="21" fill={shade ?? tone} opacity={shade ? 1 : 0.24} />
+        <path d="M1.5 1.5H22.5L1.5 22.5Z" fill={tone} />
+      </g>
     </svg>
   );
 }
