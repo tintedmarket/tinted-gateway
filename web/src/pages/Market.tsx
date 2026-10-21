@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { api, CLAIMS, type ClaimName, type MarketRow } from "../api";
-import { Badge, CLAIM_HINT, CLAIM_LABEL } from "../ui";
+import { Badge, BrandIcon, CLAIM_HINT, CLAIM_LABEL } from "../ui";
 import { go } from "../App";
 
 function Evidence({ id }: { id: string }) {
@@ -103,6 +103,7 @@ export function Market() {
             <div className="grid items-center gap-x-4 gap-y-3 px-5 py-4 transition hover:bg-pane md:grid-cols-[1.6fr_1.4fr_0.9fr_auto]">
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
+                  <BrandIcon name={r.name + " " + r.model} className="size-4 text-ink-2" />
                   <span className="truncate font-medium">{r.name}</span>
                   {r.claims?.weights === "verified" && <span className="rounded-full border border-edge px-2 py-px text-[11px] text-proof">5/5</span>}
                 </div>

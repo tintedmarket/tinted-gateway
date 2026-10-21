@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { api, CLAIMS, GATEWAY, type MarketRow } from "../api";
-import { CLAIM_LABEL } from "../ui";
+import { BrandIcon, brandOf, CLAIM_LABEL } from "../ui";
 import { go, Mark } from "../App";
 
 /* ---------- shared ---------- */
@@ -207,7 +207,7 @@ function Hero({ rows }: { rows: MarketRow[] | null }) {
           Inference Market.
         </h1>
         <div className="lg:text-right">
-          <p className="text-lg text-ink-2 lg:ml-auto lg:max-w-sm">Private by hardware, proven every call. Every model runs in a sealed enclave, and Tinted inspects the proof before your prompt leaves.</p>
+          <p className="text-lg text-ink-2 lg:ml-auto lg:max-w-sm">Private by hardware, proven every call, paid with zero-knowledge. Every model runs in a sealed enclave, and Tinted inspects the proof before your prompt leaves.</p>
           <button onClick={() => go("credits")} className="mt-6 inline-flex items-center gap-2 rounded-full border border-signal/30 bg-signal/[0.06] px-4 py-2 text-[15px] text-ink transition hover:border-signal/60">
             <Mark className="size-4" tone="#6fd6c4" /> Introducing anonymous credits <span className="text-ink-2">→</span>
           </button>
@@ -225,7 +225,7 @@ function Hero({ rows }: { rows: MarketRow[] | null }) {
 
 /* ---------- names ---------- */
 
-const NAMES = ["Tinfoil", "Phala", "NEAR AI", "Privatemode", "Fortanix", "Gemma", "Llama", "DeepSeek", "Qwen", "GPT-OSS", "GLM", "Kimi", "Mistral"];
+const NAMES = ["Gemma", "Llama", "DeepSeek", "Qwen", "GPT-OSS", "GLM", "Kimi", "Mistral", "Tinfoil", "Phala", "NEAR AI", "Privatemode", "Chutes"];
 
 function Names() {
   const line = [...NAMES, ...NAMES];
@@ -237,7 +237,7 @@ function Names() {
           <div className="marquee flex w-max gap-14 text-xl font-semibold tracking-[-0.02em] text-ink/85 whitespace-nowrap">
             {line.map((n, k) => (
               <span key={k} className="flex items-center gap-2.5">
-                <Mark className="size-4 opacity-60" /> {n}
+                <BrandIcon name={n} className="size-5" /> {n}
               </span>
             ))}
           </div>
@@ -279,7 +279,10 @@ function MarketPanel({ rows }: { rows: MarketRow[] | null }) {
                 <button key={r.id} onClick={() => setSel(r.id)} className={`grid w-full grid-cols-[64px_1fr_44px] items-center gap-3 rounded-md px-3 py-2 text-left text-sm transition ${on ? "bg-pane-2 shadow-[inset_2px_0_0_#6fd6c4]" : "hover:bg-pane-2/50"}`}>
                   <span className={`font-mono text-[13px] ${on ? "text-ink" : "text-ink-2"}`}>{usd(r.outputPerM)}</span>
                   <span className="min-w-0">
-                    <span className={`block truncate ${on ? "text-ink" : "text-ink-2"}`}>{r.name}</span>
+                    <span className={`flex items-center gap-2 truncate ${on ? "text-ink" : "text-ink-2"}`}>
+                      <BrandIcon name={r.name + " " + r.model} className="size-3.5 opacity-80" />
+                      <span className="truncate">{r.name}</span>
+                    </span>
                     <span className="mt-1 block h-1 rounded-full bg-edge">
                       <span className={`block h-full rounded-full ${on ? "bg-signal shadow-[0_0_10px_rgba(111,214,196,.7)]" : "bg-ink-3/50"}`} style={{ width: `${Math.max(4, (r.outputPerM / max) * 100)}%` }} />
                     </span>
@@ -294,7 +297,10 @@ function MarketPanel({ rows }: { rows: MarketRow[] | null }) {
         {cur && (
           <div className="flex flex-col p-6">
             <div className="text-sm text-ink-3">Selected</div>
-            <div className="mt-1 text-lg font-medium">{cur.name}</div>
+            <div className="mt-1 flex items-center gap-2.5 text-lg font-medium">
+              <BrandIcon name={cur.name + " " + cur.model} className="size-5" />
+              {cur.name}
+            </div>
             <div className="font-mono text-xs text-ink-3">{cur.id}</div>
             <div className="mt-5 flex items-baseline gap-2">
               <span className="h-display text-4xl">{usd(cur.outputPerM)}</span>
@@ -524,7 +530,10 @@ function KeyWall({ rows }: { rows: MarketRow[] | null }) {
   const tick = useTick(1600);
   const fams = useMemo(() => {
     const m = new Map<string, MarketRow>();
-    for (const r of rows ?? []) if (r.routable && !m.has(family(r))) m.set(family(r), r);
+    for (const r of rows ?? []) {
+      const k = brandOf(r.name + " " + r.model) ?? family(r);
+      if (r.routable && !m.has(k)) m.set(k, r);
+    }
     return [...m.entries()];
   }, [rows]);
   const tiles = Array.from({ length: 18 }, (_, k) => fams[k] ?? null);
@@ -539,14 +548,19 @@ function KeyWall({ rows }: { rows: MarketRow[] | null }) {
             className={`grid aspect-square place-items-center rounded-[14px] border transition duration-500 ${t ? (k === active ? "border-signal/60 bg-[#0b1516] shadow-[0_0_28px_-4px_rgba(111,214,196,.55)]" : "border-edge bg-pane") : "border-edge/50 bg-pane/40"}`}
             style={!t ? { opacity: Math.max(0.15, 0.6 - (k - fams.length) * 0.06) } : undefined}
           >
-            {t && <span className={`font-mono text-lg ${k === active ? "text-ink" : "text-ink-3"}`}>{MONO[t[0]] ?? t[0].slice(0, 2).toUpperCase()}</span>}
+            {t &&
+              (brandOf(t[1].name + " " + t[1].model) ? (
+                <BrandIcon name={t[1].name + " " + t[1].model} className={`size-8 transition ${k === active ? "text-ink" : "text-ink-3"}`} />
+              ) : (
+                <span className={`font-mono text-lg ${k === active ? "text-ink" : "text-ink-3"}`}>{MONO[t[0]] ?? t[0].slice(0, 2).toUpperCase()}</span>
+              ))}
           </div>
         ))}
       </div>
       <div className="relative mt-8 rounded-[12px] border border-edge bg-pane shadow-[0_20px_60px_-10px_rgba(0,0,0,.9)] lg:absolute lg:top-[38%] lg:right-6 lg:mt-0 lg:w-[460px]">
         <div className="flex items-center justify-between border-b border-edge px-4 py-3 text-sm">
           <span className="flex items-center gap-2 font-medium">
-            <span className="font-mono text-ink-3">›_</span> {cur ? cur.name : "Your app"}
+            {cur ? <BrandIcon name={cur.name + " " + cur.model} className="size-4" /> : <span className="font-mono text-ink-3">›_</span>} {cur ? cur.name : "Your app"}
           </span>
           <span className="flex items-center gap-1.5 rounded-full border border-edge px-2 py-0.5 text-xs text-ink-2">
             <span className="size-1.5 rounded-full bg-proof" /> Connected
@@ -557,6 +571,116 @@ function KeyWall({ rows }: { rows: MarketRow[] | null }) {
           <span className="text-ink-3">export</span> OPENAI_API_KEY=tnt_••••7Q2{"\n"}
           <span className="text-signal">$</span> python app.py <span className="caret bg-signal text-signal">▍</span>
         </pre>
+      </div>
+    </div>
+  );
+}
+
+/* ---------- anonymous credits: the zero-knowledge flow ---------- */
+
+function MiniTree({ hot }: { hot: number }) {
+  // 8 leaves under one root. The highlighted leaf wanders: the proof shows one of them is yours, not which.
+  const leaves = Array.from({ length: 8 }, (_, k) => 14 + k * 34);
+  const l1 = [0, 1, 2, 3].map((k) => (leaves[k * 2] + leaves[k * 2 + 1]) / 2);
+  const l2 = [0, 1].map((k) => (l1[k * 2] + l1[k * 2 + 1]) / 2);
+  const root = (l2[0] + l2[1]) / 2;
+  const edge = (x1: number, y1: number, x2: number, y2: number, k: string) => <line key={k} x1={x1} y1={y1} x2={x2} y2={y2} stroke="#2a2d33" strokeWidth={1.2} />;
+  return (
+    <svg viewBox="0 0 280 150" className="w-full">
+      {leaves.map((x, k) => edge(x, 118, l1[k >> 1], 80, "a" + k))}
+      {l1.map((x, k) => edge(x, 80, l2[k >> 1], 44, "b" + k))}
+      {l2.map((x, k) => edge(x, 44, root, 12, "c" + k))}
+      <circle cx={root} cy={12} r={6} fill="#6fd6c4" />
+      {[...l1.map((x) => [x, 80]), ...l2.map((x) => [x, 44])].map(([x, y], k) => (
+        <circle key={k} cx={x} cy={y} r={4} fill="#121317" stroke="#3a3e46" />
+      ))}
+      {leaves.map((x, k) => (
+        <rect key={k} x={x - 10} y={118} width={20} height={20} rx={5} fill={k === hot ? "#6fd6c4" : "#121317"} stroke={k === hot ? "#6fd6c4" : "#2a2d33"} style={{ transition: "all .4s" }} />
+      ))}
+    </svg>
+  );
+}
+
+function ZkFlow() {
+  const tick = useTick(1400);
+  const step = tick % 4;
+  const [cfg, setCfg] = useState<{ root: string; size: number } | null>(null);
+  useEffect(() => {
+    api.credits().then((c) => setCfg({ root: c.root, size: c.size }), () => undefined);
+  }, []);
+  const card = (n: number, title: string, body: ReactNode) => (
+    <div className={`flex flex-col rounded-[12px] border p-5 transition duration-500 ${step === n ? "border-signal/50 bg-[#0b1415] shadow-[0_0_30px_-10px_rgba(111,214,196,.6)]" : "border-edge bg-pane"}`}>
+      <div className="flex items-center justify-between text-xs text-ink-3">
+        <span>0{n + 1}</span>
+        <span className={step === n ? "text-signal" : ""}>{["Pay", "Join", "Prove", "Spend"][n]}</span>
+      </div>
+      <div className="mt-4 font-medium">{title}</div>
+      <div className="mt-4 flex-1 text-sm text-ink-2">{body}</div>
+    </div>
+  );
+  return (
+    <div className="overflow-hidden rounded-[14px] border border-edge bg-pane/60">
+      <div className="flex items-center gap-3 border-b border-edge px-5 py-3.5 text-sm">
+        <span className="font-medium">Anonymous credits</span>
+        <span className="rounded-md border border-edge px-2 py-0.5 text-xs text-ink-2">Groth16 · BN254 · Poseidon</span>
+        <span className="ml-auto hidden text-ink-3 sm:block">{cfg ? `${cfg.size} note${cfg.size === 1 ? "" : "s"} in the tree · root ${cfg.root.slice(0, 8)}…` : "reading the tree…"}</span>
+      </div>
+      <div className="grid gap-3 p-5 md:grid-cols-4">
+        {card(
+          0,
+          "Your wallet buys a note",
+          <div className="space-y-2 font-mono text-[12px]">
+            <div className="flex justify-between">
+              <span className="text-ink-3">amount</span>
+              <span>50 USDC</span>
+            </div>
+            <div className="flex justify-between gap-2">
+              <span className="text-ink-3">memo</span>
+              <span className="truncate">tinted:note:1f3a9c…</span>
+            </div>
+            <p className="pt-2 font-sans text-[13px] text-ink-3">The secrets stay in your browser. Only a commitment goes on-chain.</p>
+          </div>,
+        )}
+        {card(
+          1,
+          "It joins the note tree",
+          <div>
+            <MiniTree hot={(tick * 5 + 3) % 8} />
+            <p className="mt-2 text-[13px] text-ink-3">The tree's root is posted to Solana by Tinted's enclave key.</p>
+          </div>,
+        )}
+        {card(
+          2,
+          "You prove, not reveal",
+          <div>
+            <div className="h-1.5 overflow-hidden rounded-full bg-edge">
+              <div className="h-full rounded-full bg-signal transition-all duration-[1300ms]" style={{ width: step === 2 ? "100%" : step > 2 ? "100%" : "8%" }} />
+            </div>
+            <div className="mt-3 font-mono text-[12px] text-ink-2">~0.5 s in your browser</div>
+            <p className="mt-3 text-[13px] text-ink-3">A zero-knowledge proof that one of the notes is yours. Never which one.</p>
+          </div>,
+        )}
+        {card(
+          3,
+          "A fresh key gets the credit",
+          <div className="space-y-2 font-mono text-[12px]">
+            <div className="flex justify-between">
+              <span className="text-ink-3">key</span>
+              <span>tnt_••••Q7</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-ink-3">credit</span>
+              <span className="text-proof">+$50.00</span>
+            </div>
+            <p className="pt-2 font-sans text-[13px] text-ink-3">No line from the wallet to this key exists anywhere. Not even at Tinted.</p>
+          </div>,
+        )}
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-edge px-5 py-3 text-xs text-ink-3">
+        <span>Setup on the PSE Perpetual Powers of Tau, sealed with a Solana blockhash. Circuit and keys are open source.</span>
+        <button onClick={() => go("credits")} className="text-ink-2 transition hover:text-ink">
+          Buy a note →
+        </button>
       </div>
     </div>
   );
@@ -714,6 +838,15 @@ export function Home() {
         </Split>
         <Reveal className="mt-16">
           <KeyWall rows={rows} />
+        </Reveal>
+      </section>
+
+      <section className={`${W} border-t border-edge py-32`}>
+        <Split title="Anonymous by math." link={["Buy a note", () => go("credits")]}>
+          Hardware hides what you say. Zero-knowledge hides who paid. Buy a note from any wallet, redeem it with a proof, and your prompts can't be traced back to you.
+        </Split>
+        <Reveal className="mt-16">
+          <ZkFlow />
         </Reveal>
       </section>
 

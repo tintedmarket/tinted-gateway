@@ -51,3 +51,30 @@ export function Mono({ children, className = "" }: { children: ReactNode; classN
 }
 
 export const short = (s: string, n = 6) => (s.length > n * 2 + 1 ? `${s.slice(0, n)}…${s.slice(-n)}` : s);
+
+/**
+ * Model makers' marks (monochrome, from the MIT-licensed lobehub icon set in /public/logos), drawn as masks so they
+ * take the text colour. Names without an open logo get none rather than a stand-in.
+ */
+const BRANDS: [RegExp, string][] = [
+  [/gpt-oss|openai/, "openai"],
+  [/llama|meta/, "meta"],
+  [/gemma/, "gemma"],
+  [/qwen/, "qwen"],
+  [/deepseek/, "deepseek"],
+  [/glm|zhipu|z\.ai/, "zhipu"],
+  [/kimi|moonshot/, "kimi"],
+  [/mistral|voxtral|ministral/, "mistral"],
+  [/nemotron|nvidia/, "nvidia"],
+  [/minimax/, "minimax"],
+  [/phala/, "phala"],
+  [/chutes/, "chutes"],
+];
+export const brandOf = (name: string) => BRANDS.find(([re]) => re.test(name.toLowerCase()))?.[1] ?? null;
+
+export function BrandIcon({ name, className = "size-4" }: { name: string; className?: string }) {
+  const b = brandOf(name);
+  if (!b) return null;
+  const url = `url(/logos/${b}.svg)`;
+  return <span aria-hidden className={`inline-block shrink-0 bg-current ${className}`} style={{ maskImage: url, WebkitMaskImage: url, maskSize: "contain", WebkitMaskSize: "contain", maskRepeat: "no-repeat", WebkitMaskRepeat: "no-repeat", maskPosition: "center", WebkitMaskPosition: "center" }} />;
+}

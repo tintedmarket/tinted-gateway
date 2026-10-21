@@ -26,3 +26,6 @@
 - Buy: pay exactly a note size in USDC to the treasury with memo `tinted:note:<hex Poseidon(nullifierSecret, secret, amountMicros)>`
 - GET /v1/credits/leaves?from=N — all commitments in tree order (build the Merkle path locally; Poseidon, 20 levels, zero leaf 0)
 - POST /v1/credits/redeem {proof, publicSignals:[root, nullifierHash, denomMicros, sessionKey], keyHash} — sessionKey = sha256(api key) mod BN254 r; credits that key (created if new)
+
+## Links
+- X: https://x.com/tintedmarket
